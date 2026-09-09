@@ -1,0 +1,61 @@
+# =============================================================================
+# Chang Arena NFT Ticketing System - .gitignore
+# การเพิกเฉยไฟล์และข้อมูลความลับตามมาตรฐาน Enterprise
+# =============================================================================
+
+# 1. ข้อมูลความลับและ Environment Variables (Security & Secrets)
+.env
+.env*.local
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+*.env
+*.pem
+*.key
+
+# อนุญาตให้ Push เฉพาะไฟล์แม่แบบ .env.example ขึ้นสู่ Git ได้
+!.env.example
+
+# 2. Dependencies ของ Node.js
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# 3. ผลลัพธ์การคอมไพล์ Next.js และ Production Builds
+.next/
+out/
+build/
+dist/
+
+# 4. แคชและไฟล์ชั่วคราว (Cache & Temporary Files)
+.cache/
+*.tsbuildinfo
+next-env.d.ts
+
+# 5. บันทึกผลการทดสอบและการวิเคราะห์โค้ด (Testing & Coverage)
+coverage/
+.vitest/
+.nyc_output/
+
+# 6. ไฟล์ประจำระบบปฏิบัติการและ IDE (OS & Editor Files)
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+Thumbs.db
+.idea/
+.vscode/*
+!.vscode/settings.json
+!.vscode/extensions.json
+
+# 7. บล็อกเชนและ Smart Contract Build Artifacts (Remix / Hardhat / Foundry)
+cache/
+artifacts/
+typechain/
+typechain-types/
