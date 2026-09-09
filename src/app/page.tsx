@@ -20,7 +20,7 @@ export default function HomePage() {
         <div className='relative z-10 max-w-2xl space-y-4'>
           <div className='inline-flex items-center space-x-2 px-3 py-1 rounded-full bg-white/10 text-amber-300 text-xs font-medium backdrop-blur-md border border-white/10'>
             <ShieldCheck className='w-3.5 h-3.5' />
-            <span>Polygon Amoy PoS &middot; ERC-721 Standard</span>
+            <span>Ethereum Sepolia Testnet &middot; ERC-721 Standard</span>
           </div>
 
           <h1 className='text-3xl sm : text-4xl lg : text-5xl font-extrabold tracking-tight leading-tight'>
@@ -32,19 +32,19 @@ export default function HomePage() {
             สัมผัสประสบการณ์เข้าชมฟุตบอลระดับสากลของสโมสร บุรีรัมย์ ยูไนเต็ด ด้วยตั๋วดิจิทัล NFT ป้องกันตั๋วผี ตั๋วปลอม และการแคปภาพหน้าจอ (Anti-Screenshot) ด้วย Dynamic QR และการเข้ารหัสลับ EIP-191
           </p>
 
-          <div className='pt-4 flex flex-wrap gap-3'>
-            <Link href='/matches'>
-              <Button variant='gold' size='md' icon={<Ticket className='w-4 h-4' />}>
+          <div className='pt-4 flex flex-col sm : flex-row flex-wrap gap-3'>
+            <Link href='/matches' className='w-full sm : w-auto'>
+              <Button variant='gold' size='md' icon={<Ticket className='w-4 h-4' />} className='w-full sm : w-auto justify-center'>
                 เลือกซื้อตั๋วการแข่งขัน
               </Button>
             </Link>
-            <Link href='/my-tickets'>
-              <Button variant='outline' size='md' icon={<QrCode className='w-4 h-4' />}>
+            <Link href='/my-tickets' className='w-full sm : w-auto'>
+              <Button variant='outline' size='md' icon={<QrCode className='w-4 h-4' />} className='w-full sm : w-auto justify-center text-white border-white/30 hover : bg-white/10'>
                 ตั๋วของฉัน (My Tickets)
               </Button>
             </Link>
-            <Link href='/scanner'>
-              <Button variant='secondary' size='md' icon={<ArrowRight className='w-4 h-4' />}>
+            <Link href='/scanner' className='w-full sm : w-auto'>
+              <Button variant='secondary' size='md' icon={<ArrowRight className='w-4 h-4' />} className='w-full sm : w-auto justify-center'>
                 เข้าสู่โหมดเจ้าหน้าที่ตรวจบัตร
               </Button>
             </Link>
@@ -62,7 +62,7 @@ export default function HomePage() {
             Anti-Screenshot Dynamic QR
           </h3>
           <p className='text-xs text-slate-600 leading-relaxed'>
-            ตั๋วทุกใบสร้างลายเซ็นดิจิทัลใหม่ทุก 30 วินาที ผ่านกระเป๋า MetaMask ป้องกันการแคปภาพหน้าจอส่งต่อหรือนำตั๋วเวียนมาใช้ซ้ำ
+            ตั๋วทุกใบสร้างลายเซ็นดิจิทัลใหม่ทุก 60 วินาที ป้องกันการแคปภาพหน้าจอส่งต่อหรือนำตั๋วเวียนมาใช้ซ้ำ (มีโหมดเซ็นด่วนสำหรับการนำเสนองาน)
           </p>
         </div>
 

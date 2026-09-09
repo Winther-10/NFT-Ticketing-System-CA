@@ -19,6 +19,10 @@ const config: Config = {
           muted: "#f1f5f9",
           border: "#e2e8f0"
         }
+      },
+      fontFamily: {
+        sans: ["var(--font-prompt)", "Prompt", "-apple-system", "BlinkMacSystemFont", "sans-serif"],
+        prompt: ["var(--font-prompt)", "Prompt", "sans-serif"],
       }
     },
   },

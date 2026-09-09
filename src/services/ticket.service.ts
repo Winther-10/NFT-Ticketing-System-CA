@@ -25,14 +25,16 @@ export class TicketService {
   public static createSigningMessage(
     tokenId : number,
     ownerAddress : string,
-    matchId? : string
+    matchId? : string,
+    instantMode? : boolean
   ) : string {
     const timestamp = Math.floor(Date.now() / 1000);
     const payload = {
       tokenId,
       owner : ownerAddress.toLowerCase(),
       timestamp,
-      ...(matchId ? { matchId } : {})
+      ...(matchId ? { matchId } : {}),
+      ...(instantMode ? { instantMode : true } : {})
     };
     return JSON.stringify(payload);
   }
@@ -131,57 +133,98 @@ export class TicketService {
   }
 
   /**
-   * ดึงรายการตั๋วทั้งหมดของ Wallet Address จาก Supabase หรือ Mock Local Data
+   * บันทึกข้อมูลตั๋วที่เพิ่งซื้อใหม่ลงฐานข้อมูล Supabase (PostgreSQL) ผ่าน Server API และ LocalStorage
+   */
+  public static async savePurchasedTicket(
+    ticket : TicketRecord,
+    tierId? : string
+  ) : Promise<TicketRecord> {
+    const normWallet = ticket.walletAddress.toLowerCase();
+
+    // 1. ส่งข้อมูลไปยัง Server API เพื่อบันทึกลงตาราง users และ tickets ใน Supabase จริง
+    if (typeof window !== 'undefined') {
+      try {
+        await fetch('/api/tickets', {
+          method : 'POST',
+          headers : { 'Content-Type' : 'application/json' },
+          body : JSON.stringify({
+            tokenId : ticket.tokenId,
+            walletAddress : normWallet,
+            ticketType : ticket.ticketType,
+            tierId : tierId || ticket.tierName,
+            tierName : ticket.tierName,
+            matchId : ticket.targetMatchId,
+            seatZone : ticket.seatZone,
+            seatNumber : ticket.seatNumber,
+            seasonYear : ticket.seasonYear || 2026,
+            metadataUri : ticket.metadataUri || 'ipfs://chang-arena-ticket',
+            purchaseTxHash : ticket.purchaseTxHash || ''
+          })
+        });
+      } catch (err) {
+        console.warn('API /api/tickets call warning : ', err);
+      }
+    }
+
+    // 2. บันทึกลงใน LocalStorage เสมอ เพื่อให้การทดสอบในเครื่องจดจำข้อมูลตั๋วที่ซื้อจริง
+    if (typeof window !== 'undefined') {
+      try {
+        const storageKey = 'chang_arena_tickets_' + normWallet;
+        const existingRaw = localStorage.getItem(storageKey);
+        const existing : TicketRecord[] = existingRaw ? JSON.parse(existingRaw) : [];
+        const updated = [ticket, ...existing.filter((t) => t.tokenId !== ticket.tokenId)];
+        localStorage.setItem(storageKey, JSON.stringify(updated));
+      } catch (e) {
+        console.error('LocalStorage save error : ', e);
+      }
+    }
+
+    return ticket;
+  }
+
+  /**
+   * ดึงรายการตั๋วทั้งหมดของ Wallet Address จากฐานข้อมูลจริง Supabase PostgreSQL
    */
   public static async getTicketsByWallet(
     walletAddress : string
   ) : Promise<TicketRecord[]> {
-    const supabase = getSupabaseClient();
-    if (supabase) {
-      const { data, error } = await supabase
-        .from('tickets')
-        .select('*')
-        .eq('wallet_address', walletAddress.toLowerCase());
+    if (!walletAddress) return [];
 
-      if (!error && data && data.length > 0) {
-        return data.map((t : any) => ({
-          tokenId : t.token_id,
-          walletAddress : t.wallet_address,
-          ticketType : t.ticket_type,
-          tierName : t.tier_id,
-          seatZone : t.seat_zone,
-          seatNumber : t.seat_number,
-          targetMatchId : t.target_match_id,
-          seasonYear : t.season_year,
-          metadataUri : t.metadata_uri,
-          purchaseTxHash : t.purchase_tx_hash,
-          createdAt : t.created_at
-        }));
+    const normAddr = walletAddress.toLowerCase();
+    let tickets : TicketRecord[] = [];
+
+    // 1. อ่านจาก Server API (/api/tickets) ซึ่งดึงจากตาราง tickets ใน Supabase จริง
+    if (typeof window !== 'undefined') {
+      try {
+        const res = await fetch(`/api/tickets?wallet=${normAddr}`);
+        if (res.ok) {
+          const json = await res.json();
+          if (json.success && Array.isArray(json.data)) {
+            return json.data;
+          }
+        }
+      } catch (err) {
+        console.warn('API /api/tickets fetch warning : ', err);
       }
     }
 
-    // Default Demo Tickets ประจำสนามช้างอารีนา เพื่อความพร้อมในการทดสอบระบบทันที
-    return [
-      {
-        tokenId : 1,
-        walletAddress : walletAddress.toLowerCase(),
-        ticketType : 'SINGLE_MATCH',
-        tierName : 'East Stand A10 Premium',
-        seatZone : 'A10',
-        seatNumber : 'Seat-14',
-        targetMatchId : 'BRU-vs-MU-2026',
-        createdAt : new Date().toISOString()
-      },
-      {
-        tokenId : 2,
-        walletAddress : walletAddress.toLowerCase(),
-        ticketType : 'SEASON_PASS',
-        tierName : 'Platinum VIP Pass (Fast Lane)',
-        seatZone : 'VIP-Lounge',
-        seatNumber : 'VIP-08',
-        seasonYear : 2026,
-        createdAt : new Date().toISOString()
+    // 2. กรณีออฟไลน์หรือเรียก API ไม่สำเร็จ ให้อ่านจาก LocalStorage เฉพาะตั๋วที่บันทึกไว้จริง
+    if (typeof window !== 'undefined') {
+      try {
+        const storageKey = 'chang_arena_tickets_' + normAddr;
+        const storedRaw = localStorage.getItem(storageKey);
+        if (storedRaw) {
+          const stored : TicketRecord[] = JSON.parse(storedRaw);
+          if (Array.isArray(stored)) {
+            return stored;
+          }
+        }
+      } catch (e) {
+        console.error('LocalStorage read error : ', e);
       }
-    ];
+    }
+
+    // ส่งคืนรายการจริงเท่านั้น (หากไม่มีตั๋วให้ส่งอาร์เรย์ว่าง ไม่ใส่ mock up)
+    return tickets;
   }
 }

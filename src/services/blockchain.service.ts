@@ -41,9 +41,55 @@ export class BlockchainService {
   }
 
   /**
-   * ดึง Signer จาก MetaMask
+   * บังคับสลับเครือข่ายไปยัง Ethereum Sepolia Testnet อัตโนมัติ เพื่อป้องกันการเสียเงินจริงบน Mainnet
+   */
+  public static async ensureSepoliaNetwork() : Promise<void> {
+    if (typeof window === 'undefined' || !(window as any).ethereum) {
+      throw new Error('ไม่พบ MetaMask กรุณาติดตั้ง Extension ในเบราว์เซอร์');
+    }
+
+    const targetChainIdHex = '0x' + POLYGON_AMOY_CONFIG.chainId.toString(16);
+    try {
+      // ตรวจสอบ Chain ID ปัจจุบันก่อน หากอยู่บน Sepolia อยู่แล้ว ไม่ต้องส่งคำขอสลับซ้ำ
+      const currentChainId = await (window as any).ethereum.request({ method : 'eth_chainId' });
+      if (currentChainId && currentChainId.toLowerCase() === targetChainIdHex.toLowerCase()) {
+        return;
+      }
+
+      await (window as any).ethereum.request({
+        method : 'wallet_switchEthereumChain',
+        params : [{ chainId : targetChainIdHex }]
+      });
+    } catch (switchError : any) {
+      if (switchError.code === 4902) {
+        await (window as any).ethereum.request({
+          method : 'wallet_addEthereumChain',
+          params : [
+            {
+              chainId : targetChainIdHex,
+              chainName : POLYGON_AMOY_CONFIG.chainName,
+              rpcUrls : [POLYGON_AMOY_CONFIG.rpcUrl],
+              nativeCurrency : {
+                name : 'Sepolia ETH',
+                symbol : 'ETH',
+                decimals : 18
+              },
+              blockExplorerUrls : [POLYGON_AMOY_CONFIG.blockExplorerUrl]
+            }
+          ]
+        });
+      } else {
+        // หากผู้ใช้กดยกเลิกหรือไม่ยอมสลับ ให้ข้ามข้อผิดพลาดเพื่อไม่ให้เกิด crash
+        console.warn('Network switch warning : ', switchError);
+      }
+    }
+  }
+
+  /**
+   * ดึง Signer จาก MetaMask พร้อมตรวจสอบเครือข่าย Sepolia
    */
   public static async getSigner() : Promise<ethers.Signer> {
+    await this.ensureSepoliaNetwork();
     const provider = await this.getBrowserProvider();
     return await provider.getSigner();
   }
@@ -137,8 +183,23 @@ export class BlockchainService {
       matchId
     );
     const receipt = await tx.wait();
+
+    let tokenId : number | undefined;
+    if (receipt && receipt.logs) {
+      for (const log of receipt.logs) {
+        try {
+          const parsed = contract.interface.parseLog(log);
+          if (parsed && parsed.name === 'TicketMinted') {
+            tokenId = Number(parsed.args[0]);
+            break;
+          }
+        } catch {}
+      }
+    }
+
     return {
-      txHash : receipt?.hash || tx.hash
+      txHash : receipt?.hash || tx.hash,
+      tokenId
     };
   }
 
@@ -165,8 +226,24 @@ export class BlockchainService {
       seasonYear
     );
     const receipt = await tx.wait();
+
+    let tokenId : number | undefined;
+    if (receipt && receipt.logs) {
+      for (const log of receipt.logs) {
+        try {
+          const parsed = contract.interface.parseLog(log);
+          if (parsed && parsed.name === 'TicketMinted') {
+            tokenId = Number(parsed.args[0]);
+            break;
+          }
+        } catch {}
+      }
+    }
+
     return {
-      txHash : receipt?.hash || tx.hash
+      txHash : receipt?.hash || tx.hash,
+      tokenId
     };
   }
 }
+

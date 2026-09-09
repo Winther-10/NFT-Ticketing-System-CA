@@ -100,18 +100,19 @@ export const DynamicQRModal : React.FC<DynamicQRModalProps> = ({
           </div>
 
           {/* QR Code Container */}
-          <div className='relative p-5 bg-white border-2 border-slate-200 rounded-2xl shadow-inner flex flex-col items-center justify-center'>
+          <div className='relative p-4 sm : p-5 bg-white border-2 border-slate-200 rounded-2xl shadow-inner flex flex-col items-center justify-center max-w-[280px] sm : max-w-[320px] w-full'>
             {qrPayload ? (
               <div className={`transition-opacity duration-200 ${isExpired ? 'opacity-20 blur-sm' : 'opacity-100'}`}>
                 <QRCodeSVG
                   value={qrPayload}
-                  size={210}
+                  size={200}
                   level='M'
                   includeMargin={false}
+                  className='w-44 h-44 sm : w-52 sm : h-52'
                 />
               </div>
             ) : (
-              <div className='w-52 h-52 flex items-center justify-center text-xs text-slate-400'>
+              <div className='w-44 h-44 sm : w-52 sm : h-52 flex items-center justify-center text-xs text-slate-400'>
                 กำลังประมวลผล Payload...
               </div>
             )}
@@ -135,14 +136,14 @@ export const DynamicQRModal : React.FC<DynamicQRModalProps> = ({
             )}
           </div>
 
-          {/* แถบเวลานับถอยหลัง 30 วินาที */}
+          {/* แถบเวลานับถอยหลัง 60 วินาที */}
           <div className='w-full mt-4'>
             <div className='flex justify-between items-center text-xs font-medium text-slate-600 mb-1.5'>
               <span className='flex items-center space-x-1'>
                 <Clock className='w-3.5 h-3.5 text-slate-400' />
                 <span>อายุการใช้งาน</span>
               </span>
-              <span className={secondsRemaining <= 5 ? 'text-rose-600 font-bold' : 'text-[#002d62] font-semibold'}>
+              <span className={secondsRemaining <= 10 ? 'text-rose-600 font-bold' : 'text-[#002d62] font-semibold'}>
                 {secondsRemaining} วินาที
               </span>
             </div>
@@ -161,7 +162,7 @@ export const DynamicQRModal : React.FC<DynamicQRModalProps> = ({
             <ShieldAlert className='w-4 h-4 text-amber-700 flex-shrink-0 mt-0.5' />
             <div className='text-xs text-amber-800 leading-relaxed'>
               <span className='font-semibold block mb-0.5'>Anti-Screenshot Active</span>
-              ห้ามแคปภาพหน้าจอส่งต่อ QR Code จะเปลี่ยนลายเซ็นดิจิทัลทุก 30 วินาที เจ้าหน้าที่หน้าประตูจะปฏิเสธภาพถ่ายทันที
+              ห้ามแคปภาพหน้าจอส่งต่อ QR Code จะเปลี่ยนลายเซ็นดิจิทัลทุก {refreshInterval} วินาที เจ้าหน้าที่หน้าประตูจะปฏิเสธภาพถ่ายทันที
             </div>
           </div>
         </div>

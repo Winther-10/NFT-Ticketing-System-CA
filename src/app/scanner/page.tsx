@@ -32,7 +32,7 @@ export default function ScannerPage() {
         return;
       }
 
-      setStatusMessage(`ลายเซ็นถูกต้อง! (Signer : ${verification.signerAddress.slice(0, 6)}...) กำลังตรวจสอบสิทธิ์บน Polygon Amoy...`);
+      setStatusMessage(`ลายเซ็นถูกต้อง! (Signer : ${verification.signerAddress.slice(0, 6)}...) กำลังตรวจสอบสิทธิ์บน Ethereum Sepolia...`);
 
       // 2. ตรวจสอบการเข้าสนามผ่าน Blockchain Service
       try {
@@ -51,6 +51,23 @@ export default function ScannerPage() {
           matchId : currentMatchId,
           timestamp : new Date().toLocaleTimeString('th-TH')
         });
+
+        // บันทึกประวัติการเข้าสนามลง Supabase (checkin_logs table) จริง
+        try {
+          await fetch('/api/checkin', {
+            method : 'POST',
+            headers : { 'Content-Type' : 'application/json' },
+            body : JSON.stringify({
+              tokenId : verification.tokenId,
+              matchId : currentMatchId,
+              gateStaffAddress : verification.signerAddress || '0x4789e4bfa1ef3f9f4866cfd729b409458410fcaf',
+              entryStatus : 'SUCCESS',
+              signedPayload : decodedText
+            })
+          });
+        } catch (auditErr) {
+          console.warn('Check-in audit log warning : ', auditErr);
+        }
 
         setScanStatus('SUCCESS');
         setStatusMessage(`ผ่านสำเร็จ! ยืนยันสิทธิ์เข้าชมเรียบร้อย (Token ID #${verification.tokenId} | ${verification.owner.slice(0, 8)}...)`);

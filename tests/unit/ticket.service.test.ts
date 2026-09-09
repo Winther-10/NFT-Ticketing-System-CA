@@ -34,15 +34,15 @@ describe('TicketService - Business Logic & Idempotency', () => {
     expect(parsedQR.signature).toBe(result.signature);
   });
 
-  it('ต้องดึงรายการตั๋วของ Wallet Address ได้อย่างถูกต้อง (getTicketsByWallet)', async () => {
-    const walletAddress = '0x1234567890123456789012345678901234567890';
-    const tickets = await TicketService.getTicketsByWallet(walletAddress);
+  it('ต้องส่งคืนอาร์เรย์ว่างสำหรับกระเป๋าใหม่ที่ยังไม่มีตั๋วจริง โดยไม่มีข้อมูลจำลอง (getTicketsByWallet)', async () => {
+    const freshWalletAddress = '0x1111111111111111111111111111111111111111';
+    const tickets = await TicketService.getTicketsByWallet(freshWalletAddress);
 
     expect(Array.isArray(tickets)).toBe(true);
-    expect(tickets.length).toBeGreaterThanOrEqual(1);
-    expect(tickets[0].walletAddress).toBe(walletAddress.toLowerCase());
-    expect(tickets[0].tokenId).toBeDefined();
-    expect(tickets[0].tierName).toBeDefined();
+    expect(tickets.length).toBe(0);
+
+    const emptyWalletTickets = await TicketService.getTicketsByWallet('');
+    expect(emptyWalletTickets).toEqual([]);
   });
 
   it('ต้องตรวจสอบ Idempotency Key ได้อย่างถูกต้องเมื่อยังไม่เคยบันทึก', async () => {
