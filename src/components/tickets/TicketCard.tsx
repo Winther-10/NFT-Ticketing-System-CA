@@ -1,10 +1,11 @@
 'use client';
 
-import React from 'react';
+import React, { useState } from 'react';
 import { TicketRecord } from '../../services/ticket.service';
 import { Badge } from '../common/Badge';
 import { Button } from '../common/Button';
-import { QrCode, Calendar, MapPin, Award, CheckCircle } from 'lucide-react';
+import { QrCode, Calendar, MapPin, Award, CheckCircle, ExternalLink, Copy, Check, ShieldCheck } from 'lucide-react';
+import { POLYGON_AMOY_CONFIG } from '../../config/contracts';
 
 export interface TicketCardProps {
   ticket : TicketRecord;
@@ -18,9 +19,18 @@ export const TicketCard : React.FC<TicketCardProps> = ({
   isLoading = false
 }) => {
   const isSeasonPass = ticket.ticketType === 'SEASON_PASS';
+  const [copied, setCopied] = useState(false);
+
+  const handleCopyHash = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!ticket.purchaseTxHash) return;
+    navigator.clipboard.writeText(ticket.purchaseTxHash);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
 
   return (
-    <div className='bg-white rounded-2xl border border-slate-200 shadow-sm hover : shadow-md transition-all duration-200 overflow-hidden flex flex-col justify-between'>
+    <div className='bg-white rounded-2xl border border-slate-200 shadow-sm hover:shadow-md transition-all duration-200 overflow-hidden flex flex-col justify-between'>
       {/* Top Banner */}
       <div className={`p-4 border-b border-slate-100 flex items-center justify-between ${
         isSeasonPass ? 'bg-gradient-to-r from-amber-50 to-amber-100/50' : 'bg-slate-50'
@@ -75,6 +85,44 @@ export const TicketCard : React.FC<TicketCardProps> = ({
         <div className='text-[11px] text-slate-400 font-mono truncate'>
           Owner : {ticket.walletAddress}
         </div>
+
+        {/* Blockchain Tx Hash บันทึกถาวร */}
+        {ticket.purchaseTxHash ? (
+          <div className='bg-slate-50 p-2.5 rounded-xl border border-slate-200/80 text-xs flex items-center justify-between gap-2'>
+            <div className='flex items-center space-x-1.5 text-slate-600 font-medium overflow-hidden'>
+              <ShieldCheck className='w-3.5 h-3.5 text-emerald-600 flex-shrink-0' />
+              <span className='text-[11px] text-slate-500'>Tx Hash:</span>
+              <a
+                href={`${POLYGON_AMOY_CONFIG.blockExplorerUrl}/tx/${ticket.purchaseTxHash}`}
+                target='_blank'
+                rel='noopener noreferrer'
+                className='font-mono font-bold text-[#002d62] hover:text-blue-700 hover:underline flex items-center space-x-1 truncate text-[11px]'
+                title='คลิกเพื่อดู Transaction บน Sepolia Etherscan'
+              >
+                <span>{`${ticket.purchaseTxHash.slice(0, 8)}...${ticket.purchaseTxHash.slice(-6)}`}</span>
+                <ExternalLink className='w-3 h-3 flex-shrink-0' />
+              </a>
+            </div>
+
+            <button
+              type='button'
+              onClick={handleCopyHash}
+              title='คัดลอก Tx Hash เต็ม'
+              className='p-1 hover:bg-slate-200/70 rounded-lg text-slate-400 hover:text-slate-700 transition flex-shrink-0'
+            >
+              {copied ? (
+                <Check className='w-3.5 h-3.5 text-emerald-600' />
+              ) : (
+                <Copy className='w-3.5 h-3.5' />
+              )}
+            </button>
+          </div>
+        ) : (
+          <div className='text-[11px] text-slate-400 flex items-center justify-between px-1'>
+            <span>ช่องทางออกตั๋ว :</span>
+            <span className='text-slate-500 font-semibold'>Fast Pass (Off-Chain)</span>
+          </div>
+        )}
       </div>
 
       {/* Card Action */}

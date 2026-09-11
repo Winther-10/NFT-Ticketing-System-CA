@@ -26,7 +26,7 @@ export default function RootLayout({
       <body className={`${prompt.className} min-h-screen flex flex-col bg-[#f8fafc] text-slate-900 antialiased`}>
         <WalletProvider>
           <Navbar />
-          <main className='flex-1 pb-20 md : pb-0'>{children}</main>
+          <main className='flex-1 pb-20 md:pb-0'>{children}</main>
           <footer className='border-t border-slate-200 bg-white py-6 text-center text-xs text-slate-500'>
             <div className='max-w-7xl mx-auto px-4'>
               Chang Arena NFT Ticket &copy; 2026 Buriram United Football Club. Built on Ethereum Sepolia Testnet.

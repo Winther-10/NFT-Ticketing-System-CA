@@ -119,9 +119,9 @@ export default function MyTicketsPage() {
   };
 
   return (
-    <div className='max-w-7xl mx-auto px-4 sm : px-6 lg : px-8 py-10 space-y-8'>
+    <div className='max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 space-y-8'>
       {/* Header */}
-      <div className='flex flex-col md : flex-row md : items-center justify-between gap-4'>
+      <div className='flex flex-col md:flex-row md:items-center justify-between gap-4'>
         <div>
           <div className='inline-flex items-center space-x-2 text-xs font-semibold text-[#002d62] uppercase tracking-wider mb-2'>
             <ShieldCheck className='w-4 h-4 text-emerald-600' />
@@ -137,15 +137,15 @@ export default function MyTicketsPage() {
 
         {/* Controls & Wallet Address */}
         {walletAddress && (
-          <div className='flex flex-col sm : flex-row flex-wrap items-stretch sm : items-center gap-2.5 w-full md : w-auto'>
+          <div className='flex flex-col sm:flex-row flex-wrap items-stretch sm:items-center gap-2.5 w-full md:w-auto'>
             {/* โหมดเซ็นด่วน */}
             <button
               type='button'
               onClick={() => setInstantSignMode(!instantSignMode)}
-              className={`flex items-center justify-center space-x-2 px-3.5 py-2 rounded-xl text-xs font-semibold border transition-all w-full sm : w-auto ${
+              className={`flex items-center justify-center space-x-2 px-3.5 py-2 rounded-xl text-xs font-semibold border transition-all w-full sm:w-auto ${
                 instantSignMode
                   ? 'bg-amber-50 text-amber-900 border-amber-300 ring-2 ring-amber-400'
-                  : 'bg-white text-slate-600 border-slate-200 hover : bg-slate-50'
+                  : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
               }`}
             >
               <Zap className={`w-3.5 h-3.5 ${instantSignMode ? 'text-amber-600 fill-amber-500' : 'text-slate-400'}`} />
@@ -153,7 +153,7 @@ export default function MyTicketsPage() {
             </button>
 
             {/* การ์ดแสดงกระเป๋าเงิน */}
-            <div className='bg-white p-2.5 px-4 rounded-xl border border-slate-200 shadow-sm flex items-center space-x-3 w-full sm : w-auto'>
+            <div className='bg-white p-2.5 px-4 rounded-xl border border-slate-200 shadow-sm flex items-center space-x-3 w-full sm:w-auto'>
               <div className='w-8 h-8 rounded-lg bg-emerald-50 flex items-center justify-center text-emerald-600 flex-shrink-0'>
                 <Wallet className='w-4 h-4' />
               </div>
@@ -171,7 +171,7 @@ export default function MyTicketsPage() {
               onClick={() => loadUserTickets(walletAddress)}
               disabled={loading}
               title='รีเฟรชรายการตั๋วจากฐานข้อมูล'
-              className='p-2 bg-white border border-slate-200 rounded-xl text-slate-600 hover : text-[#002d62] hover : bg-slate-50 transition-colors shadow-sm'
+              className='p-2 bg-white border border-slate-200 rounded-xl text-slate-600 hover:text-[#002d62] hover:bg-slate-50 transition-colors shadow-sm'
             >
               <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin text-[#002d62]' : ''}`} />
             </button>
@@ -191,14 +191,14 @@ export default function MyTicketsPage() {
       {/* เนื้อหาหลักตามสถานะกระเป๋าเงิน */}
       {!walletAddress ? (
         /* สถานะ : ยังไม่ได้เชื่อมต่อกระเป๋าเงิน หรือออกจากระบบแล้ว */
-        <div className='bg-white rounded-2xl border border-slate-200 p-10 sm : p-12 text-center space-y-4 shadow-sm max-w-lg mx-auto my-6'>
+        <div className='bg-white rounded-2xl border border-slate-200 p-10 sm:p-12 text-center space-y-4 shadow-sm max-w-lg mx-auto my-6'>
           <div className='w-14 h-14 rounded-2xl bg-blue-50 text-[#002d62] flex items-center justify-center mx-auto'>
             <Wallet className='w-7 h-7' />
           </div>
           <h3 className='text-xl font-bold text-slate-800'>
             กรุณาเชื่อมต่อกระเป๋าเงิน MetaMask
           </h3>
-          <p className='text-xs sm : text-sm text-slate-500 leading-relaxed max-w-md mx-auto'>
+          <p className='text-xs sm:text-sm text-slate-500 leading-relaxed max-w-md mx-auto'>
             เพื่อเข้าถึงและแสดงรายการตั๋ว NFT เข้าชมสนามช้างอารีนาที่เชื่อมโยงกับกระเป๋าเงินจริงของคุณ
           </p>
           <div className='pt-2'>
@@ -208,7 +208,7 @@ export default function MyTicketsPage() {
               loading={isConnecting}
               onClick={connectWallet}
               icon={<Wallet className='w-4 h-4' />}
-              className='w-full sm : w-auto justify-center'
+              className='w-full sm:w-auto justify-center'
             >
               เชื่อมต่อ MetaMask
             </Button>
@@ -242,7 +242,7 @@ export default function MyTicketsPage() {
         </div>
       ) : (
         /* สถานะ : แสดงรายการตั๋วจริง */
-        <div className='grid grid-cols-1 md : grid-cols-2 lg : grid-cols-3 gap-6'>
+        <div className='grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6'>
           {tickets.map((t) => (
             <TicketCard
               key={t.tokenId}
@@ -264,6 +264,7 @@ export default function MyTicketsPage() {
           tierName={selectedTicket.tierName}
           seatZone={selectedTicket.seatZone}
           seatNumber={selectedTicket.seatNumber}
+          purchaseTxHash={selectedTicket.purchaseTxHash}
           onRefresh={handleRefreshQR}
         />
       )}

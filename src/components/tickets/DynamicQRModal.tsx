@@ -2,9 +2,10 @@
 
 import React, { useState, useEffect } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
-import { ShieldAlert, RefreshCw, X, Clock, CheckCircle, ShieldCheck } from 'lucide-react';
+import { ShieldAlert, RefreshCw, X, Clock, CheckCircle, ShieldCheck, ExternalLink } from 'lucide-react';
 import { Button } from '../common/Button';
 import { SECURITY_CONFIG } from '../../config/security';
+import { POLYGON_AMOY_CONFIG } from '../../config/contracts';
 
 export interface DynamicQRModalProps {
   isOpen : boolean;
@@ -14,6 +15,7 @@ export interface DynamicQRModalProps {
   tierName : string;
   seatZone : string;
   seatNumber : string;
+  purchaseTxHash? : string;
   onRefresh : () => Promise<void>;
 }
 
@@ -25,6 +27,7 @@ export const DynamicQRModal : React.FC<DynamicQRModalProps> = ({
   tierName,
   seatZone,
   seatNumber,
+  purchaseTxHash,
   onRefresh
 }) => {
   const refreshInterval = SECURITY_CONFIG.qrRefreshIntervalSeconds;
@@ -75,7 +78,7 @@ export const DynamicQRModal : React.FC<DynamicQRModalProps> = ({
           </div>
           <button
             onClick={onClose}
-            className='text-slate-400 hover : text-slate-600 p-1 rounded-lg hover : bg-slate-200/60 transition'
+            className='text-slate-400 hover:text-slate-600 p-1 rounded-lg hover:bg-slate-200/60 transition'
           >
             <X className='w-5 h-5' />
           </button>
@@ -99,8 +102,28 @@ export const DynamicQRModal : React.FC<DynamicQRModalProps> = ({
             </div>
           </div>
 
+          {/* Blockchain Verification Tx Hash */}
+          {purchaseTxHash && (
+            <div className='w-full mb-4 px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs flex items-center justify-between'>
+              <span className='font-semibold text-slate-500 flex items-center gap-1'>
+                <ShieldCheck className='w-3.5 h-3.5 text-emerald-600' />
+                Sepolia Tx :
+              </span>
+              <a
+                href={`${POLYGON_AMOY_CONFIG.blockExplorerUrl}/tx/${purchaseTxHash}`}
+                target='_blank'
+                rel='noopener noreferrer'
+                className='font-mono font-bold text-amber-700 hover:text-amber-800 hover:underline flex items-center gap-1 text-[11px]'
+                title={purchaseTxHash}
+              >
+                <span>{`${purchaseTxHash.slice(0, 10)}...${purchaseTxHash.slice(-8)}`}</span>
+                <ExternalLink className='w-3 h-3 text-amber-600' />
+              </a>
+            </div>
+          )}
+
           {/* QR Code Container */}
-          <div className='relative p-4 sm : p-5 bg-white border-2 border-slate-200 rounded-2xl shadow-inner flex flex-col items-center justify-center max-w-[280px] sm : max-w-[320px] w-full'>
+          <div className='relative p-4 sm:p-5 bg-white border-2 border-slate-200 rounded-2xl shadow-inner flex flex-col items-center justify-center max-w-[280px] sm:max-w-[320px] w-full'>
             {qrPayload ? (
               <div className={`transition-opacity duration-200 ${isExpired ? 'opacity-20 blur-sm' : 'opacity-100'}`}>
                 <QRCodeSVG
@@ -108,11 +131,11 @@ export const DynamicQRModal : React.FC<DynamicQRModalProps> = ({
                   size={200}
                   level='M'
                   includeMargin={false}
-                  className='w-44 h-44 sm : w-52 sm : h-52'
+                  className='w-44 h-44 sm:w-52 sm:h-52'
                 />
               </div>
             ) : (
-              <div className='w-44 h-44 sm : w-52 sm : h-52 flex items-center justify-center text-xs text-slate-400'>
+              <div className='w-44 h-44 sm:w-52 sm:h-52 flex items-center justify-center text-xs text-slate-400'>
                 กำลังประมวลผล Payload...
               </div>
             )}

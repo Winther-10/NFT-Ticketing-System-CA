@@ -122,6 +122,22 @@ const DEFAULT_TIERS : SeatTierInfo[] = [
 
 export class MatchService {
   public static async getMatches() : Promise<MatchInfo[]> {
+    // 1. เรียกผ่าน Next.js API Route เพื่อความปลอดภัยและข้ามข้อจำกัด RLS
+    try {
+      if (typeof window !== 'undefined') {
+        const res = await fetch('/api/matches', { cache : 'no-store' });
+        if (res.ok) {
+          const json = await res.json();
+          if (json.success && json.data && json.data.length > 0) {
+            return json.data;
+          }
+        }
+      }
+    } catch (e) {
+      console.warn('Fetch matches from API error : ', e);
+    }
+
+    // 2. Fallback ไปยัง Supabase Client โดยตรง
     const supabase = getSupabaseClient();
     if (supabase) {
       const { data, error } = await supabase
@@ -141,7 +157,24 @@ export class MatchService {
         }));
       }
     }
+
     return DEFAULT_MATCHES;
+  }
+
+  public static async createMatch(
+    matchData : Partial<MatchInfo>
+  ) : Promise<{ success : boolean; message? : string; data? : MatchInfo; error? : string }> {
+    try {
+      const res = await fetch('/api/matches', {
+        method : 'POST',
+        headers : { 'Content-Type' : 'application/json' },
+        body : JSON.stringify(matchData)
+      });
+      return await res.json();
+    } catch (err : any) {
+      console.error('MatchService.createMatch error : ', err);
+      return { success : false, error : err.message || 'เกิดข้อผิดพลาดในการเชื่อมต่อเครือข่าย' };
+    }
   }
 
   public static async getSeatTiers() : Promise<SeatTierInfo[]> {

@@ -1,11 +1,12 @@
 'use client';
 
 import React, { useState } from 'react';
+import Link from 'next/link';
 import { CameraViewport } from '../../components/scanner/CameraViewport';
 import { ScannerService } from '../../services/scanner.service';
 import { BlockchainService } from '../../services/blockchain.service';
 import { MatchService } from '../../services/match.service';
-import { ShieldCheck, ScanLine, AlertTriangle, CheckCircle2, XCircle } from 'lucide-react';
+import { ShieldCheck, ScanLine, AlertTriangle, CheckCircle2, XCircle, ArrowLeft } from 'lucide-react';
 import { Button } from '../../components/common/Button';
 import { Badge } from '../../components/common/Badge';
 
@@ -54,7 +55,7 @@ export default function ScannerPage() {
 
         // บันทึกประวัติการเข้าสนามลง Supabase (checkin_logs table) จริง
         try {
-          await fetch('/api/checkin', {
+          const auditRes = await fetch('/api/checkin', {
             method : 'POST',
             headers : { 'Content-Type' : 'application/json' },
             body : JSON.stringify({
@@ -65,6 +66,13 @@ export default function ScannerPage() {
               signedPayload : decodedText
             })
           });
+
+          const auditJson = await auditRes.json();
+          if (!auditRes.ok || auditJson.duplicate) {
+            setScanStatus('FAILED');
+            setStatusMessage(`ปฏิเสธการเข้าสนาม : ${auditJson.error || 'ตั๋วนี้ถูกสแกนผ่านประตูไปแล้ว (ห้ามใช้ซ้ำ)'}`);
+            return;
+          }
         } catch (auditErr) {
           console.warn('Check-in audit log warning : ', auditErr);
         }
@@ -126,9 +134,33 @@ export default function ScannerPage() {
   };
 
   return (
-    <div className='max-w-7xl mx-auto px-4 sm : px-6 lg : px-8 py-10 space-y-8'>
+    <div className='max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6'>
+      {/* Top Navigation Bar with Back Button */}
+      <div className='flex items-center justify-between pb-2 border-b border-slate-200'>
+        <Link href='/'>
+          <Button
+            variant='secondary'
+            size='sm'
+            icon={<ArrowLeft className='w-4 h-4' />}
+            className='text-xs font-semibold shadow-sm'
+          >
+            ย้อนกลับสู่หน้าหลัก
+          </Button>
+        </Link>
+        <Link href='/admin'>
+          <Button
+            variant='outline'
+            size='sm'
+            icon={<ScanLine className='w-4 h-4' />}
+            className='text-xs'
+          >
+            ดูแดชบอร์ดสถิติ
+          </Button>
+        </Link>
+      </div>
+
       {/* Header */}
-      <div className='flex flex-col md : flex-row md : items-center justify-between gap-4'>
+      <div className='flex flex-col md:flex-row md:items-center justify-between gap-4'>
         <div>
           <div className='inline-flex items-center space-x-2 text-xs font-semibold text-[#002d62] uppercase tracking-wider mb-2'>
             <ScanLine className='w-4 h-4 text-[#002d62]' />
@@ -158,9 +190,9 @@ export default function ScannerPage() {
       </div>
 
       {/* Main Scanner Section */}
-      <div className='grid grid-cols-1 lg : grid-cols-12 gap-8'>
+      <div className='grid grid-cols-1 lg:grid-cols-12 gap-8'>
         {/* คอลัมน์ซ้าย : กล้องสแกนและผลการตรวจ */}
-        <div className='lg : col-span-7 flex flex-col items-center justify-center'>
+        <div className='lg:col-span-7 flex flex-col items-center justify-center'>
           <CameraViewport
             onScanResult={handleScanResult}
             statusMessage={statusMessage}
@@ -170,7 +202,7 @@ export default function ScannerPage() {
         </div>
 
         {/* คอลัมน์ขวา : ข้อมูลบันทึกและชุดทดสอบสถานการณ์ */}
-        <div className='lg : col-span-5 space-y-6'>
+        <div className='lg:col-span-5 space-y-6'>
           {/* ข้อมูลตั๋วใบล่าสุดที่ผ่านเข้าสนาม */}
           <div className='bg-white rounded-2xl border border-slate-200 p-5 shadow-sm space-y-3'>
             <div className='flex items-center justify-between border-b border-slate-100 pb-3'>
@@ -223,7 +255,7 @@ export default function ScannerPage() {
               <button
                 type='button'
                 onClick={simulateValidQR}
-                className='w-full text-left p-3 rounded-xl border border-emerald-200 bg-emerald-50/50 hover : bg-emerald-50 text-xs font-semibold text-emerald-900 transition flex items-center justify-between'
+                className='w-full text-left p-3 rounded-xl border border-emerald-200 bg-emerald-50/50 hover:bg-emerald-50 text-xs font-semibold text-emerald-900 transition flex items-center justify-between'
               >
                 <div className='flex items-center space-x-2'>
                   <CheckCircle2 className='w-4 h-4 text-emerald-600' />
@@ -235,7 +267,7 @@ export default function ScannerPage() {
               <button
                 type='button'
                 onClick={simulateExpiredQR}
-                className='w-full text-left p-3 rounded-xl border border-rose-200 bg-rose-50/50 hover : bg-rose-50 text-xs font-semibold text-rose-900 transition flex items-center justify-between'
+                className='w-full text-left p-3 rounded-xl border border-rose-200 bg-rose-50/50 hover:bg-rose-50 text-xs font-semibold text-rose-900 transition flex items-center justify-between'
               >
                 <div className='flex items-center space-x-2'>
                   <XCircle className='w-4 h-4 text-rose-600' />
@@ -247,7 +279,7 @@ export default function ScannerPage() {
               <button
                 type='button'
                 onClick={simulateForgedQR}
-                className='w-full text-left p-3 rounded-xl border border-amber-200 bg-amber-50/50 hover : bg-amber-50 text-xs font-semibold text-amber-900 transition flex items-center justify-between'
+                className='w-full text-left p-3 rounded-xl border border-amber-200 bg-amber-50/50 hover:bg-amber-50 text-xs font-semibold text-amber-900 transition flex items-center justify-between'
               >
                 <div className='flex items-center space-x-2'>
                   <AlertTriangle className='w-4 h-4 text-amber-600' />
