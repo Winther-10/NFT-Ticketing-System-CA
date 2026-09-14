@@ -31,6 +31,15 @@ export default function MyTicketsPage() {
       const res = await fetch('/api/checkin', { method : 'DELETE' });
       const json = await res.json();
       if (json.success && walletAddress) {
+        if (typeof window !== 'undefined') {
+          // บันทึกสถานะ Sandbox Reset ในเครื่องสำหรับการทดสอบซ้ำ
+          tickets.forEach((t) => {
+            localStorage.setItem('chang_arena_sandbox_reset_' + t.tokenId, 'true');
+          });
+          for (let i = 1; i <= 50; i++) {
+            localStorage.setItem('chang_arena_sandbox_reset_' + i, 'true');
+          }
+        }
         await loadUserTickets(walletAddress);
       }
     } catch (err : any) {
@@ -56,6 +65,19 @@ export default function MyTicketsPage() {
       // ตรวจสอบสถานะการใช้งานจริงจาก Smart Contract (Ethereum Sepolia)
       const verifiedTickets = await Promise.all(
         data.map(async (t) => {
+          // ตรวจสอบว่าตั๋วใบนี้อยู่ในโหมดจำลองรีเซ็ตการทดสอบ (Sandbox Reset) หรือไม่
+          const isSandboxReset =
+            typeof window !== 'undefined' &&
+            localStorage.getItem('chang_arena_sandbox_reset_' + t.tokenId) === 'true';
+
+          if (isSandboxReset) {
+            return {
+              ...t,
+              isUsed : false,
+              status : 'VALID' as const
+            };
+          }
+
           if (!t.isUsed && t.ticketType !== 'SEASON_PASS') {
             try {
               const chainData = await BlockchainService.getTicketDetails(t.tokenId);

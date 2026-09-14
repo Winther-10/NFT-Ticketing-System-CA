@@ -38,6 +38,11 @@ export default function ScannerPage() {
       const res = await fetch('/api/checkin', { method : 'DELETE' });
       const json = await res.json();
       if (json.success) {
+        if (typeof window !== 'undefined') {
+          for (let i = 1; i <= 50; i++) {
+            localStorage.setItem('chang_arena_sandbox_reset_' + i, 'true');
+          }
+        }
         setStatusMessage('รีเซ็ตข้อมูลการสแกนทดสอบเรียบร้อยแล้ว ตั๋วทั้งหมดกลับสู่สถานะ [พร้อมเข้าชม]');
         setScanStatus('IDLE');
         setLastVerifiedTicket(null);
@@ -107,6 +112,11 @@ export default function ScannerPage() {
           }
         } catch (auditErr) {
           console.warn('Check-in audit log warning : ', auditErr);
+        }
+
+        // เมื่อสแกนผ่านสำเร็จ ให้นำสถานะ Sandbox Reset ออกเพื่อคืนสู่สถานะใช้งานแล้ว
+        if (typeof window !== 'undefined') {
+          localStorage.removeItem('chang_arena_sandbox_reset_' + verification.tokenId);
         }
 
         setScanStatus('SUCCESS');
