@@ -1,12 +1,12 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { CameraViewport } from '../../components/scanner/CameraViewport';
 import { ScannerService } from '../../services/scanner.service';
 import { BlockchainService } from '../../services/blockchain.service';
 import { MatchInfo, MatchService } from '../../services/match.service';
-import { ShieldCheck, ScanLine, AlertTriangle, CheckCircle2, XCircle, ArrowLeft, RotateCcw } from 'lucide-react';
+import { ShieldCheck, ScanLine, AlertTriangle, CheckCircle2, XCircle, ArrowLeft, RotateCcw, History, RefreshCw, Clock } from 'lucide-react';
 import { Button } from '../../components/common/Button';
 import { Badge } from '../../components/common/Badge';
 
@@ -18,8 +18,32 @@ export default function ScannerPage() {
   const [isProcessing, setIsProcessing] = useState<boolean>(false);
   const [isResetting, setIsResetting] = useState<boolean>(false);
   const [lastVerifiedTicket, setLastVerifiedTicket] = useState<any>(null);
+  const [scanHistory, setScanHistory] = useState<any[]>([]);
+  const [isLoadingHistory, setIsLoadingHistory] = useState<boolean>(false);
+  const [historyFilter, setHistoryFilter] = useState<'ALL' | 'SUCCESS' | 'FAILED'>('ALL');
 
-  // โหลดรายการแมตช์ทั้งหมดแบบ Dynamic จากระบบ
+  const currentMatchIdRef = useRef<string>(currentMatchId);
+  useEffect(() => {
+    currentMatchIdRef.current = currentMatchId;
+  }, [currentMatchId]);
+
+  // โหลดประวัติการสแกนตรวจบัตรเข้าสนามจาก Supabase
+  const loadScanHistory = async () => {
+    try {
+      setIsLoadingHistory(true);
+      const res = await fetch('/api/checkin?limit=30');
+      const json = await res.json();
+      if (json.success && Array.isArray(json.data)) {
+        setScanHistory(json.data);
+      }
+    } catch (err) {
+      console.warn('Load scan history warning : ', err);
+    } finally {
+      setIsLoadingHistory(false);
+    }
+  };
+
+  // โหลดรายการแมตช์ทั้งหมดแบบ Dynamic จากระบบ และโหลดประวัติเริ่มต้น
   useEffect(() => {
     MatchService.getMatches().then((data) => {
       if (data && data.length > 0) {
@@ -29,6 +53,7 @@ export default function ScannerPage() {
         }
       }
     });
+    loadScanHistory();
   }, []);
 
   // ฟังก์ชันรีเซ็ตประวัติการสแกนเพื่อทดสอบใหม่
@@ -46,6 +71,7 @@ export default function ScannerPage() {
         setStatusMessage('รีเซ็ตข้อมูลการสแกนทดสอบเรียบร้อยแล้ว ตั๋วทั้งหมดกลับสู่สถานะ [พร้อมเข้าชม]');
         setScanStatus('IDLE');
         setLastVerifiedTicket(null);
+        await loadScanHistory();
       }
     } catch (err : any) {
       console.warn('Reset error : ', err);
@@ -56,6 +82,7 @@ export default function ScannerPage() {
 
   // ตรวจสอบข้อมูลจากการสแกน QR Code
   const handleScanResult = async (decodedText : string) => {
+    const activeMatchId = currentMatchIdRef.current;
     try {
       setIsProcessing(true);
       setScanStatus('PROCESSING');
@@ -67,6 +94,7 @@ export default function ScannerPage() {
       if (!verification.isValid) {
         setScanStatus('FAILED');
         setStatusMessage(`ปฏิเสธการเข้าสนาม : ${verification.errorMessage}`);
+        await loadScanHistory();
         return;
       }
 
@@ -75,9 +103,8 @@ export default function ScannerPage() {
       // 2. ตรวจสอบการเข้าสนามผ่าน Blockchain Service
       try {
         // หากเชื่อมต่อกับ MetaMask และมีสิทธิ์ Staff ให้เรียก Contract จริง
-        let isSuccess = true;
         try {
-          await BlockchainService.checkInEntry(verification.tokenId, currentMatchId);
+          await BlockchainService.checkInEntry(verification.tokenId, activeMatchId);
         } catch (chainErr : any) {
           // หากรันในสภาพแวดล้อมจำลอง (Local Test) ให้ประเมินผล
           console.warn('Blockchain execution info : ', chainErr.message);
@@ -86,7 +113,7 @@ export default function ScannerPage() {
         setLastVerifiedTicket({
           tokenId : verification.tokenId,
           owner : verification.owner,
-          matchId : currentMatchId,
+          matchId : activeMatchId,
           timestamp : new Date().toLocaleTimeString('th-TH')
         });
 
@@ -97,7 +124,7 @@ export default function ScannerPage() {
             headers : { 'Content-Type' : 'application/json' },
             body : JSON.stringify({
               tokenId : verification.tokenId,
-              matchId : currentMatchId,
+              matchId : activeMatchId,
               gateStaffAddress : verification.signerAddress || '0x4789e4bfa1ef3f9f4866cfd729b409458410fcaf',
               entryStatus : 'SUCCESS',
               signedPayload : decodedText
@@ -108,6 +135,7 @@ export default function ScannerPage() {
           if (!auditRes.ok || auditJson.duplicate) {
             setScanStatus('FAILED');
             setStatusMessage(`ปฏิเสธการเข้าสนาม : ${auditJson.error || 'ตั๋วนี้ถูกสแกนผ่านประตูไปแล้ว (ห้ามใช้ซ้ำ)'}`);
+            await loadScanHistory();
             return;
           }
         } catch (auditErr) {
@@ -121,13 +149,16 @@ export default function ScannerPage() {
 
         setScanStatus('SUCCESS');
         setStatusMessage(`ผ่านสำเร็จ! ยืนยันสิทธิ์เข้าชมเรียบร้อย (Token ID #${verification.tokenId} | ${verification.owner.slice(0, 8)}...)`);
+        await loadScanHistory();
       } catch (err : any) {
         setScanStatus('FAILED');
         setStatusMessage(`ปฏิเสธการเข้าสนาม : ${err.message || 'ตั๋วนี้ถูกใช้งานไปแล้ว'}`);
+        await loadScanHistory();
       }
     } catch (err : any) {
       setScanStatus('FAILED');
       setStatusMessage(`เกิดข้อผิดพลาดในการตรวจสอบ : ${err.message}`);
+      await loadScanHistory();
     } finally {
       setIsProcessing(false);
     }
@@ -137,15 +168,15 @@ export default function ScannerPage() {
 
   // จำลองการสแกนตั๋วจริงในกระเป๋าตาม Token ID
   const simulateTokenScan = (tokenIdToScan : number) => {
+    const activeMatchId = currentMatchIdRef.current;
     const now = Math.floor(Date.now() / 1000);
     const owner = '0x15d0f6023ecd4482b68e2d183b54179fc15220ac';
     const data = JSON.stringify({
       tokenId : tokenIdToScan,
       owner,
       timestamp : now,
-      matchId : currentMatchId,
+      matchId : activeMatchId,
       instantMode : true
-    });
     // EIP-191 mock signature
     const signature = '0x' + '1b'.repeat(65);
     const payload = JSON.stringify({ data, signature });
@@ -193,6 +224,11 @@ export default function ScannerPage() {
     const payload = JSON.stringify({ data, signature });
     handleScanResult(payload);
   };
+
+  const filteredLogs = scanHistory.filter((log : any) => {
+    if (historyFilter === 'ALL') return true;
+    return log.entry_status === historyFilter;
+  });
 
   return (
     <div className='max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6'>
@@ -440,6 +476,161 @@ export default function ScannerPage() {
             </div>
           </div>
         </div>
+      </div>
+
+      {/* ส่วนแสดงประวัติการสแกนตั๋วเข้าสนาม (Check-in Audit Logs & History) */}
+      <div className='bg-white rounded-2xl border border-slate-200 p-6 shadow-sm space-y-4'>
+        <div className='flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-4'>
+          <div className='flex items-center space-x-3'>
+            <div className='w-10 h-10 rounded-xl bg-blue-50 text-[#002d62] flex items-center justify-center shadow-xs'>
+              <History className='w-5 h-5' />
+            </div>
+            <div>
+              <h3 className='font-bold text-slate-900 text-base flex items-center gap-2'>
+                <span>ประวัติการสแกนตั๋วเข้าสนาม (Check-in Audit Logs)</span>
+                <span className='px-2.5 py-0.5 rounded-full text-xs font-semibold bg-slate-100 text-slate-700 border border-slate-200'>
+                  {filteredLogs.length} รายการ
+                </span>
+              </h3>
+              <p className='text-xs text-slate-500'>
+                บันทึกการตรวจสอบความถูกต้องและผลการผ่านประตูสนามช้างอารีนาแบบ Real-time
+              </p>
+            </div>
+          </div>
+
+          <div className='flex items-center space-x-2'>
+            {/* ตัวกรองสถานะ */}
+            <div className='flex bg-slate-100 p-1 rounded-xl text-xs font-medium'>
+              <button
+                type='button'
+                onClick={() => setHistoryFilter('ALL')}
+                className={`px-3 py-1 rounded-lg transition ${
+                  historyFilter === 'ALL'
+                    ? 'bg-white text-slate-900 shadow-xs font-bold'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                ทั้งหมด
+              </button>
+              <button
+                type='button'
+                onClick={() => setHistoryFilter('SUCCESS')}
+                className={`px-3 py-1 rounded-lg transition ${
+                  historyFilter === 'SUCCESS'
+                    ? 'bg-emerald-600 text-white shadow-xs font-bold'
+                    : 'text-emerald-700 hover:text-emerald-800'
+                }`}
+              >
+                ผ่านสำเร็จ
+              </button>
+              <button
+                type='button'
+                onClick={() => setHistoryFilter('FAILED')}
+                className={`px-3 py-1 rounded-lg transition ${
+                  historyFilter === 'FAILED'
+                    ? 'bg-rose-600 text-white shadow-xs font-bold'
+                    : 'text-rose-700 hover:text-rose-800'
+                }`}
+              >
+                ถูกปฏิเสธ
+              </button>
+            </div>
+
+            {/* ปุ่มรีเฟรชประวัติ */}
+            <button
+              type='button'
+              onClick={loadScanHistory}
+              disabled={isLoadingHistory}
+              className='p-2 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-600 transition'
+              title='โหลดประวัติล่าสุด'
+            >
+              <RefreshCw className={`w-4 h-4 ${isLoadingHistory ? 'animate-spin' : ''}`} />
+            </button>
+          </div>
+        </div>
+
+        {/* ตารางแสดงรายการประวัติ */}
+        {filteredLogs.length === 0 ? (
+          <div className='py-12 text-center space-y-2'>
+            <Clock className='w-8 h-8 text-slate-300 mx-auto' />
+            <p className='text-sm text-slate-500 font-medium'>
+              ยังไม่มีประวัติการสแกนตั๋วในระบบ
+            </p>
+            <p className='text-xs text-slate-400'>
+              เมื่อมีการสแกน QR Code ตรวจบัตรที่หน้าประตู รายการบันทึก Audit Log จะแสดงขึ้นที่นี่โดยอัตโนมัติ
+            </p>
+          </div>
+        ) : (
+          <div className='overflow-x-auto'>
+            <table className='w-full text-left text-xs'>
+              <thead>
+                <tr className='border-b border-slate-200 text-slate-400 uppercase tracking-wider text-[11px] bg-slate-50/50'>
+                  <th className='py-3 px-3.5 font-semibold'>เวลาที่สแกน</th>
+                  <th className='py-3 px-3.5 font-semibold'>Token ID</th>
+                  <th className='py-3 px-3.5 font-semibold'>แมตช์การแข่งขัน</th>
+                  <th className='py-3 px-3.5 font-semibold'>สถานะ</th>
+                  <th className='py-3 px-3.5 font-semibold'>รายละเอียด / เหตุผล</th>
+                  <th className='py-3 px-3.5 font-semibold'>เจ้าหน้าที่สแกน</th>
+                </tr>
+              </thead>
+              <tbody className='divide-y divide-slate-100'>
+                {filteredLogs.map((log : any) => {
+                  const isSuccess = log.entry_status === 'SUCCESS';
+                  const dateStr = log.checked_in_at
+                    ? new Date(log.checked_in_at).toLocaleTimeString('th-TH') +
+                      ' ' +
+                      new Date(log.checked_in_at).toLocaleDateString('th-TH')
+                    : '-';
+
+                  return (
+                    <tr key={log.id} className='hover:bg-slate-50/80 transition-colors'>
+                      <td className='py-3 px-3.5 font-mono text-slate-600 whitespace-nowrap'>
+                        {dateStr}
+                      </td>
+                      <td className='py-3 px-3.5 whitespace-nowrap'>
+                        <span className='inline-flex items-center px-2 py-0.5 rounded-md font-bold font-mono text-xs bg-blue-50 text-[#002d62] border border-blue-200'>
+                          #{log.token_id}
+                        </span>
+                      </td>
+                      <td className='py-3 px-3.5 font-semibold text-slate-700 whitespace-nowrap'>
+                        {log.match_id}
+                      </td>
+                      <td className='py-3 px-3.5 whitespace-nowrap'>
+                        {isSuccess ? (
+                          <span className='inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200'>
+                            <CheckCircle2 className='w-3 h-3 mr-1 text-emerald-600' />
+                            ผ่านเข้าสนามสำเร็จ
+                          </span>
+                        ) : (
+                          <span className='inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-rose-100 text-rose-800 border border-rose-200'>
+                            <XCircle className='w-3 h-3 mr-1 text-rose-600' />
+                            ปฏิเสธการเข้า
+                          </span>
+                        )}
+                      </td>
+                      <td className='py-3 px-3.5 text-slate-600 max-w-sm'>
+                        {log.rejection_reason ? (
+                          <span className='text-rose-600 font-medium'>
+                            {log.rejection_reason}
+                          </span>
+                        ) : (
+                          <span className='text-emerald-700'>
+                            ยืนยันสิทธิ์ถูกต้อง สแกนผ่านประตูเรียบร้อย
+                          </span>
+                        )}
+                      </td>
+                      <td className='py-3 px-3.5 font-mono text-slate-500 whitespace-nowrap'>
+                        {log.gate_staff_address
+                          ? `${log.gate_staff_address.slice(0, 6)}...${log.gate_staff_address.slice(-4)}`
+                          : '-'}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
     </div>
   );

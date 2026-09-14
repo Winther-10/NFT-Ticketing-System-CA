@@ -22,6 +22,11 @@ export const CameraViewport : React.FC<CameraViewportProps> = ({
   const [manualInput, setManualInput] = useState<string>('');
   const [showManual, setShowManual] = useState<boolean>(false);
   const scannerRef = useRef<Html5QrcodeScanner | null>(null);
+  const onScanResultRef = useRef(onScanResult);
+
+  useEffect(() => {
+    onScanResultRef.current = onScanResult;
+  }, [onScanResult]);
 
   useEffect(() => {
     try {
@@ -39,7 +44,7 @@ export const CameraViewport : React.FC<CameraViewportProps> = ({
         async (decodedText : string) => {
           if (isProcessing) return;
           try {
-            await onScanResult(decodedText);
+            await onScanResultRef.current(decodedText);
           } catch (e) {
             console.error(e);
           }
@@ -65,7 +70,7 @@ export const CameraViewport : React.FC<CameraViewportProps> = ({
   const handleManualSubmit = async (e : React.FormEvent) => {
     e.preventDefault();
     if (!manualInput.trim()) return;
-    await onScanResult(manualInput.trim());
+    await onScanResultRef.current(manualInput.trim());
   };
 
   return (

@@ -139,6 +139,39 @@ export async function POST(req : NextRequest) {
   }
 }
 
+export async function GET(req : NextRequest) {
+  try {
+    const supabase = getSupabaseAdmin();
+    if (!supabase) {
+      return NextResponse.json({ success : true, data : [] });
+    }
+
+    const { searchParams } = new URL(req.url);
+    const matchId = searchParams.get('matchId');
+    const limit = Number(searchParams.get('limit')) || 30;
+
+    let query = supabase
+      .from('checkin_logs')
+      .select('*')
+      .order('checked_in_at', { ascending : false })
+      .limit(limit);
+
+    if (matchId && matchId !== 'ALL') {
+      query = query.eq('match_id', matchId);
+    }
+
+    const { data, error } = await query;
+
+    if (error) {
+      return NextResponse.json({ success : false, error : error.message }, { status : 500 });
+    }
+
+    return NextResponse.json({ success : true, data : data || [] });
+  } catch (err : any) {
+    return NextResponse.json({ success : false, error : err.message }, { status : 500 });
+  }
+}
+
 export async function DELETE(req : NextRequest) {
   try {
     const supabase = getSupabaseAdmin();
