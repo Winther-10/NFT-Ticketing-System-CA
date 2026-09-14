@@ -99,4 +99,30 @@ describe('ScannerService - Anti-Screenshot & Dynamic QR Verification', () => {
     expect(emptyDataResult.isValid).toBe(false);
     expect(emptyDataResult.errorMessage).toContain('ขาดข้อมูล');
   });
+
+  it('ต้องผ่านการตรวจสอบเมื่อใช้ Instant Sign Mode สำหรับการนำเสนอและการทดสอบด่วน', async () => {
+    const realOwner = '0x4789e4bfa1ef3f9f4866cfd729b409458410fcaf';
+    const localSigner = ethers.Wallet.createRandom();
+    const now = Math.floor(Date.now() / 1000);
+
+    const messageObj = {
+      tokenId : 999,
+      owner : realOwner.toLowerCase(),
+      timestamp : now,
+      instantMode : true
+    };
+    const messageString = JSON.stringify(messageObj);
+    const signature = await localSigner.signMessage(messageString);
+
+    const qrPayload = JSON.stringify({
+      data : messageString,
+      signature
+    });
+
+    const result = ScannerService.verifyQRPayload(qrPayload, 60);
+
+    expect(result.isValid).toBe(true);
+    expect(result.tokenId).toBe(999);
+    expect(result.owner.toLowerCase()).toBe(realOwner.toLowerCase());
+  });
 });

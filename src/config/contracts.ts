@@ -2,16 +2,16 @@
 // เชื่อมโยงค่าตัวแปรจากไฟล์ .env โดยตรง
 
 export const POLYGON_AMOY_CONFIG = {
-  chainId : Number(process.env.NEXT_PUBLIC_CHAIN_ID) || 80002,
-  chainName : process.env.NEXT_PUBLIC_CHAIN_NAME || 'Polygon Amoy Testnet',
-  rpcUrl : process.env.NEXT_PUBLIC_POLYGON_AMOY_RPC_URL || 'https://rpc-amoy.polygon.technology',
-  blockExplorerUrl : process.env.NEXT_PUBLIC_BLOCK_EXPLORER_URL || 'https://amoy.polygonscan.com',
-  currencySymbol : 'MATIC'
+  chainId : Number(process.env.NEXT_PUBLIC_CHAIN_ID) || 11155111,
+  chainName : process.env.NEXT_PUBLIC_CHAIN_NAME || 'Ethereum Sepolia Testnet',
+  rpcUrl : process.env.NEXT_PUBLIC_POLYGON_AMOY_RPC_URL || 'https://ethereum-sepolia-rpc.publicnode.com',
+  blockExplorerUrl : process.env.NEXT_PUBLIC_BLOCK_EXPLORER_URL || 'https://sepolia.etherscan.io',
+  currencySymbol : 'ETH'
 };
 
 // อ่านที่อยู่ Contract จาก .env (NEXT_PUBLIC_CONTRACT_ADDRESS)
 export const CHANG_ARENA_CONTRACT_ADDRESS =
-  process.env.NEXT_PUBLIC_CONTRACT_ADDRESS || '0x4376f92025De220677102e3b2eE9B1F54B06922C';
+  process.env.NEXT_PUBLIC_CONTRACT_ADDRESS || '0xF696E2cBf25019a6dC03d943B47BdDFa270399C9';
 
 export const CHANG_ARENA_ABI = [
   'function name() view returns (string)',

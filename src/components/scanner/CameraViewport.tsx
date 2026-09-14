@@ -82,7 +82,7 @@ export const CameraViewport : React.FC<CameraViewportProps> = ({
           <button
             type='button'
             onClick={() => setShowManual(!showManual)}
-            className='text-xs text-slate-500 hover : text-slate-800 underline'
+            className='text-xs text-slate-500 hover:text-slate-800 underline'
           >
             {showManual ? 'เปิดมุมมองกล้อง' : 'กรอกโค้ดทดสอบ'}
           </button>
@@ -91,7 +91,7 @@ export const CameraViewport : React.FC<CameraViewportProps> = ({
         {/* Viewport กล้อง */}
         {!showManual ? (
           <div>
-            <div id='reader' className='overflow-hidden rounded-xl bg-slate-900 border border-slate-800' />
+            <div id='reader' className='overflow-hidden rounded-xl bg-slate-900 border border-slate-800 text-white min-h-[260px]' />
             {cameraError && (
               <div className='mt-3 p-3 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-800 flex items-start space-x-2'>
                 <AlertCircle className='w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5' />
@@ -126,21 +126,22 @@ export const CameraViewport : React.FC<CameraViewportProps> = ({
         {/* ป้ายแสดงผลการตรวจสอบ Gate Check-in Status */}
         {statusMessage && (
           <div
-            className={`mt-4 p-4 rounded-xl border text-sm font-medium transition-all ${
+            className={`mt-4 p-4 rounded-xl border text-sm font-medium transition-all shadow-sm ${
               scanStatus === 'SUCCESS'
-                ? 'bg-emerald-50 text-emerald-800 border-emerald-300'
+                ? 'bg-emerald-600 text-white border-emerald-500'
                 : scanStatus === 'FAILED'
-                ? 'bg-rose-50 text-rose-800 border-rose-300'
+                ? 'bg-rose-600 text-white border-rose-500'
                 : scanStatus === 'PROCESSING'
-                ? 'bg-blue-50 text-[#002d62] border-blue-200'
-                : 'bg-slate-50 text-slate-700 border-slate-200'
+                ? 'bg-blue-600 text-white border-blue-500'
+                : 'bg-[#002d62] text-white border-[#001c3d]'
             }`}
           >
-            <div className='flex items-start space-x-2.5'>
-              {scanStatus === 'SUCCESS' && <CheckCircle2 className='w-5 h-5 text-emerald-600 flex-shrink-0 mt-0.5' />}
-              {scanStatus === 'FAILED' && <ShieldAlert className='w-5 h-5 text-rose-600 flex-shrink-0 mt-0.5' />}
-              {scanStatus === 'PROCESSING' && <RefreshCw className='w-5 h-5 text-[#002d62] animate-spin flex-shrink-0 mt-0.5' />}
-              <div className='leading-relaxed'>{statusMessage}</div>
+            <div className='flex items-start space-x-2.5 text-white'>
+              {scanStatus === 'SUCCESS' && <CheckCircle2 className='w-5 h-5 text-emerald-200 flex-shrink-0 mt-0.5' />}
+              {scanStatus === 'FAILED' && <ShieldAlert className='w-5 h-5 text-rose-200 flex-shrink-0 mt-0.5' />}
+              {scanStatus === 'PROCESSING' && <RefreshCw className='w-5 h-5 text-blue-200 animate-spin flex-shrink-0 mt-0.5' />}
+              {scanStatus === 'IDLE' && <CheckCircle2 className='w-5 h-5 text-amber-400 flex-shrink-0 mt-0.5' />}
+              <div className='leading-relaxed text-white font-semibold'>{statusMessage}</div>
             </div>
           </div>
         )}
