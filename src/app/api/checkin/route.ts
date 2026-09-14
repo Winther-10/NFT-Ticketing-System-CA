@@ -10,6 +10,57 @@ export async function POST(req : NextRequest) {
     if (supabase && tokenId) {
       const targetMatch = matchId || 'BRU-vs-MU-2026';
 
+      // หากเป็นการส่งบันทึกสถานะ FAILED มาโดยตรง ให้บันทึกลง checkin_logs ทันที
+      if (entryStatus === 'FAILED') {
+        const { data } = await supabase.from('checkin_logs').insert([
+          {
+            token_id : Number(tokenId),
+            match_id : targetMatch,
+            gate_staff_address : (gateStaffAddress || '0x4789e4bfa1ef3f9f4866cfd729b409458410fcaf').toLowerCase(),
+            entry_status : 'FAILED',
+            rejection_reason : rejectionReason || 'Verification Failed',
+            blockchain_tx_hash : blockchainTxHash || '',
+            signed_payload : signedPayload || '',
+            checked_in_at : new Date().toISOString()
+          }
+        ]).select().single();
+        return NextResponse.json({ success : true, data });
+      }
+
+      // ตรวจสอบรหัสแมตช์จากเนื้อหา Payload ของ QR Code ที่เซ็นชื่อมา
+      let payloadMatchId = '';
+      try {
+        const parsed = typeof signedPayload === 'string' ? JSON.parse(signedPayload) : signedPayload;
+        const inner = typeof parsed.data === 'string' ? JSON.parse(parsed.data) : parsed?.data;
+        if (inner && inner.matchId) {
+          payloadMatchId = inner.matchId;
+        }
+      } catch {}
+
+      if (payloadMatchId && payloadMatchId !== targetMatch) {
+        await supabase.from('checkin_logs').insert([
+          {
+            token_id : Number(tokenId),
+            match_id : targetMatch,
+            gate_staff_address : (gateStaffAddress || '0x4789e4bfa1ef3f9f4866cfd729b409458410fcaf').toLowerCase(),
+            entry_status : 'FAILED',
+            rejection_reason : `Invalid Match : ตั๋วนี้สำหรับแมตช์ ${payloadMatchId} ไม่สามารถใช้กับแมตช์ ${targetMatch} ได้`,
+            blockchain_tx_hash : blockchainTxHash || '',
+            signed_payload : signedPayload || 'INVALID_MATCH_ATTEMPT',
+            checked_in_at : new Date().toISOString()
+          }
+        ]);
+
+        return NextResponse.json(
+          {
+            success : false,
+            invalidMatch : true,
+            error : `Invalid Match : ตั๋วนี้สำหรับแมตช์ ${payloadMatchId} ไม่สามารถใช้กับแมตช์ ${targetMatch} ได้`
+          },
+          { status : 400 }
+        );
+      }
+
       // 1. ดึงข้อมูลตั๋วเพื่อตรวจสอบประเภทตั๋ว (SINGLE_MATCH หรือ SEASON_PASS) และ Match ID
       const { data : ticketData } = await supabase
         .from('tickets')

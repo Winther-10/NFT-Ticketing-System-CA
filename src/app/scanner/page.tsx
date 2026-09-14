@@ -88,17 +88,36 @@ export default function ScannerPage() {
       setScanStatus('PROCESSING');
       setStatusMessage('กำลังถอดรหัสลายเซ็นดิจิทัลและตรวจอายุ Dynamic QR...');
 
-      // 1. เรียก ScannerService เพื่อตรวจ TTL (Time-To-Live) และ EIP-191 Signature (SoC)
-      const verification = ScannerService.verifyQRPayload(decodedText, 60);
+      // 1. เรียก ScannerService เพื่อตรวจ TTL, EIP-191 Signature และความถูกต้องของแมตช์การแข่งขัน
+      const verification = ScannerService.verifyQRPayload(decodedText, 60, activeMatchId);
 
       if (!verification.isValid) {
         setScanStatus('FAILED');
         setStatusMessage(`ปฏิเสธการเข้าสนาม : ${verification.errorMessage}`);
+
+        // บันทึก Log การปฏิเสธลงฐานข้อมูล checkin_logs ใน Supabase ทันที
+        try {
+          await fetch('/api/checkin', {
+            method : 'POST',
+            headers : { 'Content-Type' : 'application/json' },
+            body : JSON.stringify({
+              tokenId : verification.tokenId || 0,
+              matchId : activeMatchId,
+              gateStaffAddress : verification.signerAddress || '0x4789e4bfa1ef3f9f4866cfd729b409458410fcaf',
+              entryStatus : 'FAILED',
+              rejectionReason : verification.errorMessage,
+              signedPayload : decodedText
+            })
+          });
+        } catch (logErr) {
+          console.warn('Check-in failed log warning : ', logErr);
+        }
+
         await loadScanHistory();
         return;
       }
 
-      setStatusMessage(`ลายเซ็นถูกต้อง! (Signer : ${verification.signerAddress.slice(0, 6)}...) กำลังตรวจสอบสิทธิ์บน Ethereum Sepolia...`);
+      setStatusMessage(`ลายเซ็นและแมตช์ถูกต้อง! (Signer : ${verification.signerAddress.slice(0, 6)}...) กำลังตรวจสอบสิทธิ์บน Ethereum Sepolia...`);
 
       // 2. ตรวจสอบการเข้าสนามผ่าน Blockchain Service
       try {
@@ -166,16 +185,31 @@ export default function ScannerPage() {
 
   const [customTokenId, setCustomTokenId] = useState<number>(2);
 
-  // จำลองการสแกนตั๋วจริงในกระเป๋าตาม Token ID
-  const simulateTokenScan = (tokenIdToScan : number) => {
+  // จำลองการสแกนตั๋วจริงในกระเป๋าตาม Token ID โดยดึงแมตช์จริงของตั๋ว
+  const simulateTokenScan = async (tokenIdToScan : number) => {
     const activeMatchId = currentMatchIdRef.current;
     const now = Math.floor(Date.now() / 1000);
     const owner = '0x15d0f6023ecd4482b68e2d183b54179fc15220ac';
+
+    // ผูกรหัสแมตช์จริงของตั๋วแต่ละใบเพื่อทดสอบการตรวจสอบคู่แข่งขัน
+    let ticketMatchId = '';
+    if (tokenIdToScan === 2) {
+      ticketMatchId = 'BRU-vs-BG-2026'; // ตั๋วแมตช์ Buriram vs BG Pathum
+    } else if (tokenIdToScan === 5) {
+      ticketMatchId = 'BRU-vs-PORTFC-2026'; // ตั๋วแมตช์ Buriram vs Port FC
+    } else if (tokenIdToScan === 11135) {
+      ticketMatchId = 'BRU-vs-MU-2026'; // ตั๋วแมตช์ Buriram vs Muangthong
+    } else if (tokenIdToScan === 1 || tokenIdToScan === 3 || tokenIdToScan === 4 || tokenIdToScan === 8 || tokenIdToScan === 19505) {
+      ticketMatchId = ''; // ตั๋วรายปี Season Pass (ใช้ได้ทุกนัด)
+    } else {
+      ticketMatchId = activeMatchId;
+    }
+
     const data = JSON.stringify({
       tokenId : tokenIdToScan,
       owner,
       timestamp : now,
-      matchId : activeMatchId,
+      ...(ticketMatchId ? { matchId : ticketMatchId } : {}),
       instantMode : true
     });
     // EIP-191 mock signature
@@ -186,26 +220,30 @@ export default function ScannerPage() {
 
   // ชุดข้อมูลจำลองสำหรับทดสอบสถานการณ์ต่างๆ (Test Scenarios)
   const simulateValidQR = () => {
+    const activeMatchId = currentMatchIdRef.current;
     const now = Math.floor(Date.now() / 1000);
     const data = JSON.stringify({
       tokenId : 1,
       owner : '0x70997970c51812dc3a010c7d01b50e0d17dc79c8',
-      timestamp : now
+      timestamp : now,
+      matchId : activeMatchId,
+      instantMode : true
     });
-    // EIP-191 mock signature
     const signature = '0x' + '1b'.repeat(65);
-    // สร้าง payload
     const payload = JSON.stringify({ data, signature });
     handleScanResult(payload);
   };
 
   const simulateExpiredQR = () => {
+    const activeMatchId = currentMatchIdRef.current;
     // เวลาเมื่อ 3 นาทีที่แล้ว (อายุเกิน 60 วินาที = แคปภาพหน้าจอมา)
     const oldTime = Math.floor(Date.now() / 1000) - 180;
     const data = JSON.stringify({
       tokenId : 1,
       owner : '0x70997970c51812dc3a010c7d01b50e0d17dc79c8',
-      timestamp : oldTime
+      timestamp : oldTime,
+      matchId : activeMatchId,
+      instantMode : true
     });
     const signature = '0x' + '1b'.repeat(65);
     const payload = JSON.stringify({ data, signature });
@@ -213,15 +251,36 @@ export default function ScannerPage() {
   };
 
   const simulateForgedQR = () => {
+    const activeMatchId = currentMatchIdRef.current;
     // ลายเซ็นไม่ตรงกับ Owner
     const now = Math.floor(Date.now() / 1000);
     const data = JSON.stringify({
       tokenId : 2,
       owner : '0x3c44cdddb6a900fa2b585dd299e03d12fa4293bc',
-      timestamp : now
+      timestamp : now,
+      matchId : activeMatchId,
+      instantMode : false
     });
     // ลายเซ็นขยะ
     const signature = '0x' + '00'.repeat(65);
+    const payload = JSON.stringify({ data, signature });
+    handleScanResult(payload);
+  };
+
+  // จำลองสแกนตั๋วผิดคู่แข่งขัน (Invalid Match)
+  const simulateWrongMatchQR = () => {
+    const activeMatchId = currentMatchIdRef.current;
+    // สลับเป็นรหัสแมตช์อื่นที่ตรงข้ามกับแมตช์ที่เลือกไว้ใน Dropdown
+    const wrongMatchId = activeMatchId === 'BRU-vs-PORTFC-2026' ? 'BRU-vs-MU-2026' : 'BRU-vs-PORTFC-2026';
+    const now = Math.floor(Date.now() / 1000);
+    const data = JSON.stringify({
+      tokenId : 5,
+      owner : '0x15d0f6023ecd4482b68e2d183b54179fc15220ac',
+      timestamp : now,
+      matchId : wrongMatchId,
+      instantMode : true
+    });
+    const signature = '0x' + '1b'.repeat(65);
     const payload = JSON.stringify({ data, signature });
     handleScanResult(payload);
   };
@@ -363,17 +422,29 @@ export default function ScannerPage() {
               <Badge variant='gold'>TEST SCAN</Badge>
             </div>
 
-            <div className='grid grid-cols-2 gap-2 pt-1'>
+            <div className='grid grid-cols-1 sm:grid-cols-3 gap-2 pt-1'>
               <button
                 type='button'
                 onClick={() => simulateTokenScan(2)}
                 className='p-2.5 rounded-xl border border-blue-300 bg-white hover:bg-blue-50 text-xs font-bold text-[#002d62] transition text-left flex flex-col justify-between shadow-xs'
               >
                 <div className='flex items-center justify-between w-full'>
-                  <span>สแกน Token #2</span>
-                  <span className='text-[10px] px-1.5 py-0.2 rounded bg-blue-100 text-blue-800 font-normal'>Single</span>
+                  <span>สแกน #2</span>
+                  <span className='text-[10px] px-1.5 py-0.2 rounded bg-blue-100 text-blue-800 font-normal'>BG Pathum</span>
                 </div>
-                <span className='text-[10px] text-slate-500 mt-1'>ตั๋วรายแมตช์ สแกนแล้วสถานะจะขึ้น [ใช้งานแล้ว]</span>
+                <span className='text-[10px] text-slate-500 mt-1'>ตั๋วแมตช์ BG Pathum (นัดอื่นจะถูกปฏิเสธ)</span>
+              </button>
+
+              <button
+                type='button'
+                onClick={() => simulateTokenScan(5)}
+                className='p-2.5 rounded-xl border border-indigo-300 bg-white hover:bg-indigo-50 text-xs font-bold text-indigo-900 transition text-left flex flex-col justify-between shadow-xs'
+              >
+                <div className='flex items-center justify-between w-full'>
+                  <span>สแกน #5</span>
+                  <span className='text-[10px] px-1.5 py-0.2 rounded bg-indigo-100 text-indigo-800 font-normal'>Port FC</span>
+                </div>
+                <span className='text-[10px] text-slate-500 mt-1'>ตั๋วแมตช์ Port FC (นัดอื่นจะถูกปฏิเสธ)</span>
               </button>
 
               <button
@@ -382,10 +453,10 @@ export default function ScannerPage() {
                 className='p-2.5 rounded-xl border border-amber-300 bg-white hover:bg-amber-50 text-xs font-bold text-amber-900 transition text-left flex flex-col justify-between shadow-xs'
               >
                 <div className='flex items-center justify-between w-full'>
-                  <span>สแกน Token #4</span>
+                  <span>สแกน #4</span>
                   <span className='text-[10px] px-1.5 py-0.2 rounded bg-amber-100 text-amber-800 font-normal'>Season</span>
                 </div>
-                <span className='text-[10px] text-slate-500 mt-1'>ตั๋วรายปี สแกนผ่านได้ทุกนัดตลอดปี 2026</span>
+                <span className='text-[10px] text-slate-500 mt-1'>ตั๋วรายปี (สแกนผ่านได้ทุกนัด)</span>
               </button>
             </div>
 
@@ -434,7 +505,7 @@ export default function ScannerPage() {
                 จำลองสถานการณ์ตรวจบัตร (Test Scenarios)
               </h4>
               <p className='text-xs text-slate-500 mt-0.5'>
-                ทดสอบตรรกะความปลอดภัย ป้องกันการแคปจอและการสวมสิทธิ์
+                ทดสอบตรรกะความปลอดภัย ป้องกันการแคปจอ ตั๋วผิดคู่แข่งขัน และการสวมสิทธิ์
               </p>
             </div>
 
@@ -473,6 +544,18 @@ export default function ScannerPage() {
                   <span>3. ตรวจจับลายเซ็นปลอมแปลง (Signer ปลอม)</span>
                 </div>
                 <span className='text-[10px] text-amber-700 font-mono'>ปฏิเสธทันที</span>
+              </button>
+
+              <button
+                type='button'
+                onClick={simulateWrongMatchQR}
+                className='w-full text-left p-3 rounded-xl border border-purple-200 bg-purple-50/50 hover:bg-purple-50 text-xs font-semibold text-purple-900 transition flex items-center justify-between'
+              >
+                <div className='flex items-center space-x-2'>
+                  <AlertTriangle className='w-4 h-4 text-purple-600' />
+                  <span>4. ตรวจจับตั๋วผิดคู่แข่งขัน (Invalid Match : ตั๋วคนละแมตช์)</span>
+                </div>
+                <span className='text-[10px] text-purple-700 font-mono'>ปฏิเสธทันที</span>
               </button>
             </div>
           </div>

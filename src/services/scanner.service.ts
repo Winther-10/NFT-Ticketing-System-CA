@@ -36,7 +36,8 @@ export class ScannerService {
    */
   public static verifyQRPayload(
     rawPayloadString : string,
-    maxAgeSeconds = SECURITY_CONFIG.qrMaxAgeSeconds
+    maxAgeSeconds = SECURITY_CONFIG.qrMaxAgeSeconds,
+    expectedMatchId? : string
   ) : VerificationResult {
     try {
       if (!rawPayloadString || typeof rawPayloadString !== 'string') {
@@ -108,6 +109,20 @@ export class ScannerService {
         };
       }
 
+      // 3.1 ตรวจสอบความถูกต้องของแมตช์การแข่งขัน (Match Integrity Verification)
+      if (expectedMatchId && payloadData.matchId && payloadData.matchId !== expectedMatchId) {
+        return {
+          isValid : false,
+          tokenId : payloadData.tokenId,
+          owner : payloadData.owner,
+          timestamp : payloadData.timestamp,
+          ageInSeconds,
+          signerAddress : '',
+          matchId : payloadData.matchId,
+          errorMessage : `Invalid Match : ตั๋วนี้สำหรับแมตช์ ${payloadData.matchId} ไม่สามารถใช้กับแมตช์ ${expectedMatchId} ได้`
+        };
+      }
+
       // 4. ถอดรหัสลายเซ็นดิจิทัล (EIP-191 Signature Recovery)
       let recoveredAddress = '';
       try {
@@ -134,7 +149,8 @@ export class ScannerService {
             owner : payloadData.owner,
             timestamp : payloadData.timestamp,
             ageInSeconds,
-            signerAddress : recoveredAddress
+            signerAddress : recoveredAddress,
+            matchId : payloadData.matchId
           };
         }
 
@@ -155,7 +171,8 @@ export class ScannerService {
         owner : payloadData.owner,
         timestamp : payloadData.timestamp,
         ageInSeconds,
-        signerAddress : recoveredAddress
+        signerAddress : recoveredAddress,
+        matchId : payloadData.matchId
       };
     } catch (err : any) {
       return {
