@@ -13,6 +13,11 @@ export interface TicketRecord {
   metadataUri? : string;
   purchaseTxHash? : string;
   createdAt? : string;
+  status? : 'VALID' | 'USED' | 'EXPIRED';
+  isUsed? : boolean;
+  isExpired? : boolean;
+  matchDateTime? : string;
+  usedAt? : string;
 }
 
 /**

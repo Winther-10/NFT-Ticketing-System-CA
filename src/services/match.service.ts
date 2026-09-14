@@ -16,6 +16,8 @@ export interface SeatTierInfo {
   basePriceThb : number;
   isSeasonPassEligible : boolean;
   totalCapacity : number;
+  soldCount? : number;
+  availableSeats? : number;
 }
 
 const DEFAULT_MATCHES : MatchInfo[] = [
@@ -177,7 +179,24 @@ export class MatchService {
     }
   }
 
-  public static async getSeatTiers() : Promise<SeatTierInfo[]> {
+  public static async getSeatTiers(matchId? : string) : Promise<SeatTierInfo[]> {
+    // 1. เรียกผ่าน API Route เพื่อคำนวณจำนวนที่นั่งคงเหลือแยกตามแมตช์
+    try {
+      if (typeof window !== 'undefined') {
+        const query = matchId ? `?matchId=${encodeURIComponent(matchId)}` : '';
+        const res = await fetch(`/api/seat-tiers${query}`, { cache : 'no-store' });
+        if (res.ok) {
+          const json = await res.json();
+          if (json.success && json.data && json.data.length > 0) {
+            return json.data;
+          }
+        }
+      }
+    } catch (e) {
+      console.warn('Fetch seat tiers from API error : ', e);
+    }
+
+    // 2. Fallback ไปยัง Supabase Client โดยตรง
     const supabase = getSupabaseClient();
     if (supabase) {
       const { data, error } = await supabase
@@ -192,11 +211,13 @@ export class MatchService {
           standLocation : t.stand_location,
           basePriceThb : Number(t.base_price_thb),
           isSeasonPassEligible : t.is_season_pass_eligible,
-          totalCapacity : t.total_capacity
+          totalCapacity : t.total_capacity,
+          soldCount : 0,
+          availableSeats : t.total_capacity
         }));
       }
     }
-    return DEFAULT_TIERS;
+    return DEFAULT_TIERS.map((t) => ({ ...t, soldCount : 0, availableSeats : t.totalCapacity }));
   }
 
   public static async getMatchById(matchId : string) : Promise<MatchInfo | null> {

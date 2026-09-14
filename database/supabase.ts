@@ -22,7 +22,11 @@ export const getSupabaseClient = () : SupabaseClient | null => {
 
   if (isRealUrl && supabaseAnonKey && !supabaseAnonKey.includes('placeholder')) {
     try {
-      supabaseInstance = createClient(cleanUrl, supabaseAnonKey);
+      supabaseInstance = createClient(cleanUrl, supabaseAnonKey, {
+        global : {
+          fetch : (url, options) => fetch(url, { ...options, cache : 'no-store' })
+        }
+      });
       return supabaseInstance;
     } catch (err) {
       console.warn('ไม่สามารถสร้าง Supabase Client ได้ : ', err);
@@ -51,6 +55,9 @@ export const getSupabaseAdmin = () : SupabaseClient | null => {
         auth : {
           autoRefreshToken : false,
           persistSession : false
+        },
+        global : {
+          fetch : (url, options) => fetch(url, { ...options, cache : 'no-store' })
         }
       });
       return supabaseAdminInstance;

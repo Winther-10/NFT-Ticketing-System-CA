@@ -24,16 +24,39 @@ export default function MatchesPage() {
   const [purchasedTicket, setPurchasedTicket] = useState<TicketRecord | null>(null);
   const [isAddMatchOpen, setIsAddMatchOpen] = useState<boolean>(false);
 
+  // โหลดรายการโซนที่นั่งและคำนวณจำนวนที่นั่งคงเหลือแยกตามแมตช์
+  const loadSeatTiers = async (matchId : string) => {
+    try {
+      const data = await MatchService.getSeatTiers(matchId);
+      setSeatTiers(data);
+      setSelectedTier((prev) => {
+        if (!prev) return data[0] || null;
+        const found = data.find((d) => d.tierId === prev.tierId);
+        return found || data[0] || null;
+      });
+    } catch (err) {
+      console.warn('Load seat tiers warning : ', err);
+    }
+  };
+
   useEffect(() => {
     MatchService.getMatches().then((data) => setMatches(data));
-    MatchService.getSeatTiers().then((data) => {
-      setSeatTiers(data);
-      if (data.length > 0) setSelectedTier(data[0]);
-    });
   }, []);
+
+  useEffect(() => {
+    if (selectedMatch) {
+      loadSeatTiers(selectedMatch);
+    }
+  }, [selectedMatch]);
 
   const handlePurchaseTicket = async () => {
     if (!selectedTier) return;
+
+    // ตรวจสอบว่าที่นั่งในโซนนี้เต็มหรือไม่ ป้องกันการขายเกิน (Anti-Overselling)
+    if (selectedTier.availableSeats !== undefined && selectedTier.availableSeats <= 0) {
+      setMintStatus('ขออภัย : ที่นั่งในโซนนี้ถูกจองเต็มแล้ว (Sold Out)');
+      return;
+    }
 
     try {
       setIsMinting(true);
@@ -109,6 +132,10 @@ export default function MatchesPage() {
       // 4. บันทึกข้อมูลจริงลง Supabase และ LocalStorage
       await TicketService.savePurchasedTicket(newTicket, selectedTier.tierId);
       setPurchasedTicket(newTicket);
+
+      // 5. โหลดจำนวนที่นั่งคงเหลือใหม่ทันที เพื่อให้ตัวเลขที่นั่งลดลงแบบ Real-time
+      await loadSeatTiers(selectedMatch);
+
       setMintStatus(
         purchaseMode === 'ONCHAIN'
           ? `บันทึกบน Sepolia สำเร็จ! Token ID #${mintedTokenId} บันทึกลงในกระเป๋าของคุณแล้ว`
@@ -205,9 +232,35 @@ export default function MatchesPage() {
                     <Badge variant={isSeason ? 'gold' : 'default'}>
                       {isSeason ? 'SEASON PASS' : tier.standLocation}
                     </Badge>
-                    <span className='text-xs text-slate-400 font-mono'>
-                      {tier.totalCapacity} ที่นั่ง
-                    </span>
+                    <div className='text-right'>
+                      <span className={`text-xs font-mono font-bold ${
+                        (tier.availableSeats ?? tier.totalCapacity) <= 0
+                          ? 'text-rose-600'
+                          : (tier.availableSeats ?? tier.totalCapacity) < 50
+                          ? 'text-amber-600'
+                          : 'text-emerald-700'
+                      }`}>
+                        {(tier.availableSeats ?? tier.totalCapacity) <= 0
+                          ? 'ที่นั่งเต็ม (SOLD OUT)'
+                          : `คงเหลือ ${tier.availableSeats?.toLocaleString()} / ${tier.totalCapacity.toLocaleString()} ที่`}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* แถบแสดงอัตราการจองที่นั่ง */}
+                  <div className='w-full bg-slate-100 rounded-full h-1.5 overflow-hidden'>
+                    <div
+                      className={`h-full rounded-full transition-all duration-500 ${
+                        (tier.availableSeats ?? tier.totalCapacity) <= 0
+                          ? 'bg-rose-500'
+                          : isSeason
+                          ? 'bg-amber-500'
+                          : 'bg-[#002d62]'
+                      }`}
+                      style={{
+                        width : `${Math.min(100, Math.round(((tier.soldCount || 0) / (tier.totalCapacity || 1)) * 100))}%`
+                      }}
+                    />
                   </div>
 
                   <div>
@@ -373,14 +426,26 @@ export default function MatchesPage() {
                   </span>
                 )}
                 <Button
-                  variant='gold'
+                  variant={
+                    selectedTier && selectedTier.availableSeats !== undefined && selectedTier.availableSeats <= 0
+                      ? 'secondary'
+                      : 'gold'
+                  }
                   size='lg'
+                  disabled={
+                    isMinting ||
+                    (selectedTier !== null && selectedTier.availableSeats !== undefined && selectedTier.availableSeats <= 0)
+                  }
                   loading={isMinting}
                   onClick={handlePurchaseTicket}
                   icon={<Ticket className='w-5 h-5' />}
                   className='w-full sm:w-auto justify-center'
                 >
-                  {purchaseMode === 'FAST' ? 'ยืนยันการออกตั๋ว (ได้ตั๋วทันที)' : 'ยืนยันและ Mint บน Sepolia'}
+                  {selectedTier && selectedTier.availableSeats !== undefined && selectedTier.availableSeats <= 0
+                    ? 'ที่นั่งโซนนี้เต็มแล้ว (SOLD OUT)'
+                    : purchaseMode === 'FAST'
+                    ? 'ยืนยันการออกตั๋ว (ได้ตั๋วทันที)'
+                    : 'ยืนยันและ Mint บน Sepolia'}
                 </Button>
               </div>
             </div>

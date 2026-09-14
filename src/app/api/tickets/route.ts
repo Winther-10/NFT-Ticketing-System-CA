@@ -37,19 +37,93 @@ export async function GET(req : NextRequest) {
         .order('created_at', { ascending : false });
 
       if (!error && data && data.length > 0) {
-        const mappedTickets : TicketRecord[] = data.map((t : any) => ({
-          tokenId : Number(t.token_id),
-          walletAddress : t.wallet_address,
-          ticketType : t.ticket_type,
-          tierName : t.tier_id,
-          seatZone : t.seat_zone,
-          seatNumber : t.seat_number,
-          targetMatchId : t.target_match_id || '',
-          seasonYear : t.season_year || 2026,
-          metadataUri : t.metadata_uri,
-          purchaseTxHash : t.purchase_tx_hash,
-          createdAt : t.created_at
-        }));
+        const tokenIds = data.map((t : any) => Number(t.token_id)).filter((id : number) => !isNaN(id));
+
+        // 1. ดึงประวัติการเข้าชมที่ SUCCESS จาก checkin_logs เพื่อดูว่าตั๋วถูกใช้งานแล้วหรือไม่
+        const { data : checkins } = await supabase
+          .from('checkin_logs')
+          .select('token_id, match_id, checked_in_at, entry_status')
+          .in('token_id', tokenIds)
+          .eq('entry_status', 'SUCCESS');
+
+        // 2. ดึงข้อมูลวันเวลาแข่งของ matches เพื่อเช็คว่าหมดอายุหรือยัง
+        const { data : matches } = await supabase
+          .from('matches')
+          .select('match_id, match_datetime, home_team, away_team');
+
+        const checkinMap = new Map<number, any>();
+        if (checkins) {
+          checkins.forEach((c : any) => {
+            checkinMap.set(Number(c.token_id), c);
+          });
+        }
+
+        const matchMap = new Map<string, any>();
+        if (matches) {
+          matches.forEach((m : any) => {
+            matchMap.set(m.match_id, m);
+          });
+        }
+
+        const now = new Date();
+
+        const mappedTickets : TicketRecord[] = data.map((t : any) => {
+          const tokenId = Number(t.token_id);
+          const isSeason = t.ticket_type === 'SEASON_PASS';
+          const targetMatchId = t.target_match_id || '';
+          const matchInfo = targetMatchId ? matchMap.get(targetMatchId) : null;
+          const checkinInfo = checkinMap.get(tokenId);
+
+          let isUsed = false;
+          let isExpired = false;
+          let status : 'VALID' | 'USED' | 'EXPIRED' = 'VALID';
+
+          if (isSeason) {
+            // สำหรับตั๋วรายปี (Season Pass) : ใช้งานได้ตลอดทั้งฤดูกาล
+            // จะหมดอายุเมื่อพ้นปีฤดูกาลแข่งขันเท่านั้น (เช่น สิ้นสุดปี 2026)
+            const currentYear = now.getFullYear();
+            if (t.season_year && currentYear > Number(t.season_year)) {
+              isExpired = true;
+              status = 'EXPIRED';
+            } else {
+              // ตั๋วรายปียังคงสถานะพร้อมเข้าชมสำหรับนัดต่อไปเสมอ
+              status = 'VALID';
+              isUsed = false;
+            }
+          } else {
+            // สำหรับตั๋วรายแมตช์ (Single Match) : สิทธิ์จะหมดเมื่อสแกนแล้ว หรือแมตช์แข่งเสร็จสิ้น
+            if (checkinInfo) {
+              isUsed = true;
+              status = 'USED';
+            } else if (matchInfo && matchInfo.match_datetime) {
+              const matchDate = new Date(matchInfo.match_datetime);
+              // ถ้าเวลาปัจจุบันผ่านวันเวลาแข่งไปเกิน 3 ชั่วโมง (แมตช์แข่งขันเสร็จสิ้นแล้ว)
+              if (now.getTime() > matchDate.getTime() + (3 * 60 * 60 * 1000)) {
+                isExpired = true;
+                status = 'EXPIRED';
+              }
+            }
+          }
+
+          return {
+            tokenId,
+            walletAddress : t.wallet_address,
+            ticketType : t.ticket_type,
+            tierName : t.tier_id,
+            seatZone : t.seat_zone,
+            seatNumber : t.seat_number,
+            targetMatchId,
+            seasonYear : t.season_year || 2026,
+            metadataUri : t.metadata_uri,
+            purchaseTxHash : t.purchase_tx_hash,
+            createdAt : t.created_at,
+            status,
+            isUsed,
+            isExpired,
+            matchDateTime : matchInfo ? matchInfo.match_datetime : undefined,
+            usedAt : checkinInfo ? checkinInfo.checked_in_at : undefined
+          };
+        });
 
         return NextResponse.json({ success : true, data : mappedTickets });
       }

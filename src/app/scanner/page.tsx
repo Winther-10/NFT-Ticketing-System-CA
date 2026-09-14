@@ -6,7 +6,7 @@ import { CameraViewport } from '../../components/scanner/CameraViewport';
 import { ScannerService } from '../../services/scanner.service';
 import { BlockchainService } from '../../services/blockchain.service';
 import { MatchService } from '../../services/match.service';
-import { ShieldCheck, ScanLine, AlertTriangle, CheckCircle2, XCircle, ArrowLeft } from 'lucide-react';
+import { ShieldCheck, ScanLine, AlertTriangle, CheckCircle2, XCircle, ArrowLeft, RotateCcw } from 'lucide-react';
 import { Button } from '../../components/common/Button';
 import { Badge } from '../../components/common/Badge';
 
@@ -15,7 +15,26 @@ export default function ScannerPage() {
   const [statusMessage, setStatusMessage] = useState<string>('พร้อมสแกนตรวจสิทธิ์บัตรเข้าสนาม');
   const [scanStatus, setScanStatus] = useState<'IDLE' | 'SUCCESS' | 'FAILED' | 'PROCESSING'>('IDLE');
   const [isProcessing, setIsProcessing] = useState<boolean>(false);
+  const [isResetting, setIsResetting] = useState<boolean>(false);
   const [lastVerifiedTicket, setLastVerifiedTicket] = useState<any>(null);
+
+  // ฟังก์ชันรีเซ็ตประวัติการสแกนเพื่อทดสอบใหม่
+  const handleResetAuditLogs = async () => {
+    try {
+      setIsResetting(true);
+      const res = await fetch('/api/checkin', { method : 'DELETE' });
+      const json = await res.json();
+      if (json.success) {
+        setStatusMessage('รีเซ็ตข้อมูลการสแกนทดสอบเรียบร้อยแล้ว ตั๋วทั้งหมดกลับสู่สถานะ [พร้อมเข้าชม]');
+        setScanStatus('IDLE');
+        setLastVerifiedTicket(null);
+      }
+    } catch (err : any) {
+      console.warn('Reset error : ', err);
+    } finally {
+      setIsResetting(false);
+    }
+  };
 
   // ตรวจสอบข้อมูลจากการสแกน QR Code
   const handleScanResult = async (decodedText : string) => {
@@ -89,6 +108,25 @@ export default function ScannerPage() {
     } finally {
       setIsProcessing(false);
     }
+  };
+
+  const [customTokenId, setCustomTokenId] = useState<number>(2);
+
+  // จำลองการสแกนตั๋วจริงในกระเป๋าตาม Token ID
+  const simulateTokenScan = (tokenIdToScan : number) => {
+    const now = Math.floor(Date.now() / 1000);
+    const owner = '0x15d0f6023ecd4482b68e2d183b54179fc15220ac';
+    const data = JSON.stringify({
+      tokenId : tokenIdToScan,
+      owner,
+      timestamp : now,
+      matchId : currentMatchId,
+      instantMode : true
+    });
+    // EIP-191 mock signature
+    const signature = '0x' + '1b'.repeat(65);
+    const payload = JSON.stringify({ data, signature });
+    handleScanResult(payload);
   };
 
   // ชุดข้อมูลจำลองสำหรับทดสอบสถานการณ์ต่างๆ (Test Scenarios)
@@ -238,6 +276,85 @@ export default function ScannerPage() {
                 ยังไม่มีรายการสแกนในรอบนี้
               </div>
             )}
+          </div>
+
+          {/* กล่องทดสอบสแกนตั๋วจริงจากกระเป๋า (Interactive Sandbox Test) */}
+          <div className='bg-white rounded-2xl border border-blue-200 p-5 shadow-sm space-y-3 bg-gradient-to-b from-blue-50/40 to-white'>
+            <div className='border-b border-blue-100 pb-2.5 flex items-center justify-between'>
+              <div>
+                <h4 className='font-bold text-slate-900 text-sm flex items-center gap-1.5'>
+                  <ShieldCheck className='w-4 h-4 text-[#002d62]' />
+                  <span>ทดสอบสแกนตั๋วจริงในระบบ (Sandbox)</span>
+                </h4>
+                <p className='text-xs text-slate-500 mt-0.5'>
+                  คลิกเพื่อจำลองการสแกนตั๋วแต่ละใบ และดูการเปลี่ยนสถานะ
+                </p>
+              </div>
+              <Badge variant='gold'>TEST SCAN</Badge>
+            </div>
+
+            <div className='grid grid-cols-2 gap-2 pt-1'>
+              <button
+                type='button'
+                onClick={() => simulateTokenScan(2)}
+                className='p-2.5 rounded-xl border border-blue-300 bg-white hover:bg-blue-50 text-xs font-bold text-[#002d62] transition text-left flex flex-col justify-between shadow-xs'
+              >
+                <div className='flex items-center justify-between w-full'>
+                  <span>สแกน Token #2</span>
+                  <span className='text-[10px] px-1.5 py-0.2 rounded bg-blue-100 text-blue-800 font-normal'>Single</span>
+                </div>
+                <span className='text-[10px] text-slate-500 mt-1'>ตั๋วรายแมตช์ สแกนแล้วสถานะจะขึ้น [ใช้งานแล้ว]</span>
+              </button>
+
+              <button
+                type='button'
+                onClick={() => simulateTokenScan(4)}
+                className='p-2.5 rounded-xl border border-amber-300 bg-white hover:bg-amber-50 text-xs font-bold text-amber-900 transition text-left flex flex-col justify-between shadow-xs'
+              >
+                <div className='flex items-center justify-between w-full'>
+                  <span>สแกน Token #4</span>
+                  <span className='text-[10px] px-1.5 py-0.2 rounded bg-amber-100 text-amber-800 font-normal'>Season</span>
+                </div>
+                <span className='text-[10px] text-slate-500 mt-1'>ตั๋วรายปี สแกนผ่านได้ทุกนัดตลอดปี 2026</span>
+              </button>
+            </div>
+
+            {/* ช่องกรอก Token ID แบบกำหนดเอง */}
+            <div className='pt-1.5 flex items-center gap-2'>
+              <div className='flex items-center bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5 flex-1'>
+                <span className='text-xs text-slate-500 font-bold mr-1'>Token #</span>
+                <input
+                  type='number'
+                  value={customTokenId}
+                  onChange={(e) => setCustomTokenId(Number(e.target.value))}
+                  className='bg-transparent text-xs font-bold text-slate-800 w-full focus:outline-none'
+                  placeholder='ระบุ Token ID'
+                />
+              </div>
+              <Button
+                size='sm'
+                variant='primary'
+                onClick={() => simulateTokenScan(customTokenId)}
+                icon={<ScanLine className='w-3.5 h-3.5' />}
+                className='text-xs'
+              >
+                สแกนตั๋วใบนี้
+              </Button>
+            </div>
+
+            {/* ปุ่มรีเซ็ตสถานะการทดสอบ */}
+            <div className='pt-2 border-t border-blue-100 flex items-center justify-between'>
+              <span className='text-[11px] text-slate-500'>ต้องการทดสอบใหม่ตั้งแต่ต้น?</span>
+              <button
+                type='button'
+                onClick={handleResetAuditLogs}
+                disabled={isResetting}
+                className='text-[11px] font-semibold text-rose-600 hover:text-rose-700 flex items-center gap-1 disabled:opacity-50 transition'
+              >
+                <RotateCcw className={`w-3 h-3 ${isResetting ? 'animate-spin' : ''}`} />
+                <span>{isResetting ? 'กำลังรีเซ็ต...' : 'รีเซ็ตสถานะตั๋วทดสอบทั้งหมด'}</span>
+              </button>
+            </div>
           </div>
 
           {/* กล่องทดสอบสถานการณ์จำลอง (Simulation Testing Box) */}

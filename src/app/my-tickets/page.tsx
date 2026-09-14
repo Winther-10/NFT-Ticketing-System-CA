@@ -21,8 +21,9 @@ export default function MyTicketsPage() {
   const [isSigning, setIsSigning] = useState<boolean>(false);
   const [errorMessage, setErrorMessage] = useState<string>('');
   const [instantSignMode, setInstantSignMode] = useState<boolean>(true);
+  const [filterStatus, setFilterStatus] = useState<'ALL' | 'VALID' | 'USED' | 'EXPIRED'>('ALL');
 
-  // ดึงรายการตั๋วจริงจาก Supabase PostgreSQL ตาม Wallet Address
+  // ดึงรายการตั๋วจริงจาก Supabase PostgreSQL และตรวจเช็คสถานะ On-chain
   const loadUserTickets = async (addr : string) => {
     if (!addr) {
       setTickets([]);
@@ -34,7 +35,29 @@ export default function MyTicketsPage() {
       setLoading(true);
       setErrorMessage('');
       const data = await TicketService.getTicketsByWallet(addr);
-      setTickets(data);
+
+      // ตรวจสอบสถานะการใช้งานจริงจาก Smart Contract (Ethereum Sepolia)
+      const verifiedTickets = await Promise.all(
+        data.map(async (t) => {
+          if (!t.isUsed && t.ticketType !== 'SEASON_PASS') {
+            try {
+              const chainData = await BlockchainService.getTicketDetails(t.tokenId);
+              if (chainData && chainData.isUsedSingle) {
+                return {
+                  ...t,
+                  isUsed : true,
+                  status : 'USED' as const
+                };
+              }
+            } catch {
+              // หากเรียก RPC ไม่ได้ให้ใช้สถานะเดิม
+            }
+          }
+          return t;
+        })
+      );
+
+      setTickets(verifiedTickets);
     } catch (err : any) {
       setErrorMessage(err.message || 'ไม่สามารถโหลดข้อมูลตั๋วได้');
     } finally {
@@ -117,6 +140,17 @@ export default function MyTicketsPage() {
       await handleOpenQR(selectedTicket);
     }
   };
+
+  const validCount = tickets.filter((t) => !t.isUsed && !t.isExpired).length;
+  const usedCount = tickets.filter((t) => t.isUsed).length;
+  const expiredCount = tickets.filter((t) => t.isExpired && !t.isUsed).length;
+
+  const filteredTickets = tickets.filter((t) => {
+    if (filterStatus === 'VALID') return !t.isUsed && !t.isExpired;
+    if (filterStatus === 'USED') return t.isUsed;
+    if (filterStatus === 'EXPIRED') return t.isExpired && !t.isUsed;
+    return true;
+  });
 
   return (
     <div className='max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 space-y-8'>
@@ -242,15 +276,71 @@ export default function MyTicketsPage() {
         </div>
       ) : (
         /* สถานะ : แสดงรายการตั๋วจริง */
-        <div className='grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6'>
-          {tickets.map((t) => (
-            <TicketCard
-              key={t.tokenId}
-              ticket={t}
-              onOpenQR={handleOpenQR}
-              isLoading={isSigning && selectedTicket?.tokenId === t.tokenId}
-            />
-          ))}
+        <div className='space-y-6'>
+          {/* แถบตัวกรองสถานะตั๋ว (Filter Tabs) */}
+          <div className='flex flex-wrap items-center gap-2 border-b border-slate-200 pb-3'>
+            <button
+              type='button'
+              onClick={() => setFilterStatus('ALL')}
+              className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all ${
+                filterStatus === 'ALL'
+                  ? 'bg-[#002d62] text-white shadow-sm'
+                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+              }`}
+            >
+              ทั้งหมด ({tickets.length})
+            </button>
+            <button
+              type='button'
+              onClick={() => setFilterStatus('VALID')}
+              className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center space-x-1.5 ${
+                filterStatus === 'VALID'
+                  ? 'bg-emerald-600 text-white shadow-sm'
+                  : 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200'
+              }`}
+            >
+              <span>พร้อมเข้าชม ({validCount})</span>
+            </button>
+            <button
+              type='button'
+              onClick={() => setFilterStatus('USED')}
+              className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center space-x-1.5 ${
+                filterStatus === 'USED'
+                  ? 'bg-slate-700 text-white shadow-sm'
+                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200 border border-slate-300'
+              }`}
+            >
+              <span>ใช้งานแล้ว ({usedCount})</span>
+            </button>
+            <button
+              type='button'
+              onClick={() => setFilterStatus('EXPIRED')}
+              className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center space-x-1.5 ${
+                filterStatus === 'EXPIRED'
+                  ? 'bg-rose-600 text-white shadow-sm'
+                  : 'bg-rose-50 text-rose-700 hover:bg-rose-100 border border-rose-200'
+              }`}
+            >
+              <span>หมดอายุ ({expiredCount})</span>
+            </button>
+          </div>
+
+          {filteredTickets.length === 0 ? (
+            <div className='bg-slate-50 border border-slate-200 rounded-2xl p-10 text-center text-slate-500 text-sm'>
+              ไม่พบรายการตั๋วในหมวดหมู่นี้
+            </div>
+          ) : (
+            <div className='grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6'>
+              {filteredTickets.map((t) => (
+                <TicketCard
+                  key={t.tokenId}
+                  ticket={t}
+                  onOpenQR={handleOpenQR}
+                  isLoading={isSigning && selectedTicket?.tokenId === t.tokenId}
+                />
+              ))}
+            </div>
+          )}
         </div>
       )}
 
