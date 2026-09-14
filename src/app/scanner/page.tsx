@@ -177,6 +177,7 @@ export default function ScannerPage() {
       timestamp : now,
       matchId : activeMatchId,
       instantMode : true
+    });
     // EIP-191 mock signature
     const signature = '0x' + '1b'.repeat(65);
     const payload = JSON.stringify({ data, signature });
