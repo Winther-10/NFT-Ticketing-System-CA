@@ -9,12 +9,13 @@ import { TicketRecord, TicketService } from '../../services/ticket.service';
 import { BlockchainService } from '../../services/blockchain.service';
 import { Button } from '../../components/common/Button';
 import { useWallet } from '../../context/WalletContext';
-import { Ticket, Wallet, ShieldCheck, RefreshCw, Zap } from 'lucide-react';
+import { Ticket, Wallet, ShieldCheck, RefreshCw, Zap, RotateCcw } from 'lucide-react';
 
 export default function MyTicketsPage() {
   const { walletAddress, isConnected, isConnecting, connectWallet } = useWallet();
   const [tickets, setTickets] = useState<TicketRecord[]>([]);
   const [loading, setLoading] = useState<boolean>(false);
+  const [isResetting, setIsResetting] = useState<boolean>(false);
   const [selectedTicket, setSelectedTicket] = useState<TicketRecord | null>(null);
   const [qrPayload, setQrPayload] = useState<string>('');
   const [isModalOpen, setIsModalOpen] = useState<boolean>(false);
@@ -22,6 +23,22 @@ export default function MyTicketsPage() {
   const [errorMessage, setErrorMessage] = useState<string>('');
   const [instantSignMode, setInstantSignMode] = useState<boolean>(true);
   const [filterStatus, setFilterStatus] = useState<'ALL' | 'VALID' | 'USED' | 'EXPIRED'>('ALL');
+
+  // ฟังก์ชันรีเซ็ตประวัติการสแกนทดสอบเพื่อคืนสถานะ [พร้อมเข้าชม]
+  const handleResetTestTickets = async () => {
+    try {
+      setIsResetting(true);
+      const res = await fetch('/api/checkin', { method : 'DELETE' });
+      const json = await res.json();
+      if (json.success && walletAddress) {
+        await loadUserTickets(walletAddress);
+      }
+    } catch (err : any) {
+      console.warn('Reset error : ', err);
+    } finally {
+      setIsResetting(false);
+    }
+  };
 
   // ดึงรายการตั๋วจริงจาก Supabase PostgreSQL และตรวจเช็คสถานะ On-chain
   const loadUserTickets = async (addr : string) => {
@@ -208,6 +225,18 @@ export default function MyTicketsPage() {
               className='p-2 bg-white border border-slate-200 rounded-xl text-slate-600 hover:text-[#002d62] hover:bg-slate-50 transition-colors shadow-sm'
             >
               <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin text-[#002d62]' : ''}`} />
+            </button>
+
+            {/* ปุ่มรีเซ็ตสถานะตั๋วทดสอบ */}
+            <button
+              type='button'
+              onClick={handleResetTestTickets}
+              disabled={isResetting || loading}
+              title='รีเซ็ตสถานะตั๋วทดสอบทั้งหมดกลับเป็น [พร้อมเข้าชม]'
+              className='flex items-center space-x-1.5 px-3 py-2 bg-rose-50 border border-rose-200 text-rose-700 hover:bg-rose-100 rounded-xl text-xs font-semibold transition-colors shadow-sm'
+            >
+              <RotateCcw className={`w-3.5 h-3.5 ${isResetting ? 'animate-spin' : ''}`} />
+              <span>{isResetting ? 'กำลังรีเซ็ต...' : 'รีเซ็ตสถานะตั๋วทดสอบ'}</span>
             </button>
           </div>
         )}

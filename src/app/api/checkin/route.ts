@@ -152,8 +152,8 @@ export async function DELETE(req : NextRequest) {
     if (tokenId) {
       await supabase.from('checkin_logs').delete().eq('token_id', Number(tokenId));
     } else {
-      // ลบ Log การสแกนสำหรับการทดสอบ (Token 1, 2, 3, 4)
-      await supabase.from('checkin_logs').delete().in('token_id', [1, 2, 3, 4]);
+      // ลบ Log ประวัติการสแกนทั้งหมดในระบบ เพื่อรีเซ็ตสถานะตั๋วทุกใบกลับสู่ [พร้อมเข้าชม] (ครอบคลุมทุก Token ID)
+      await supabase.from('checkin_logs').delete().neq('entry_status', '__NONE__');
     }
 
     return NextResponse.json({ success : true, message : 'รีเซ็ตข้อมูลการสแกนทดสอบเรียบร้อยแล้ว' });

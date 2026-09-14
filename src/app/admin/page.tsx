@@ -20,11 +20,16 @@ import {
   Calendar,
   Trophy,
   Filter,
-  PlusCircle
+  PlusCircle,
+  UserCheck,
+  UserPlus
 } from 'lucide-react';
 import { Button } from '../../components/common/Button';
 import { Badge } from '../../components/common/Badge';
 import { AddMatchModal } from '../../components/matches/AddMatchModal';
+import { BlockchainService } from '../../services/blockchain.service';
+import { useWallet } from '../../context/WalletContext';
+import { CHANG_ARENA_CONTRACT_ADDRESS, POLYGON_AMOY_CONFIG } from '../../config/contracts';
 
 interface OverviewStats {
   totalTickets : number;
@@ -96,12 +101,69 @@ interface DashboardData {
 }
 
 export default function AdminDashboardPage() {
+  const { walletAddress, connectWallet } = useWallet();
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [activeTab, setActiveTab] = useState<'CHECKINS' | 'TICKETS'>('CHECKINS');
   const [autoRefresh, setAutoRefresh] = useState<boolean>(false);
   const [selectedMatchId, setSelectedMatchId] = useState<string>('ALL');
   const [isAddMatchOpen, setIsAddMatchOpen] = useState<boolean>(false);
+
+  // สถานะการจัดการสิทธิ์ Staff บน Smart Contract
+  const [contractOwner, setContractOwner] = useState<string>('0x15D0f6023Ecd4482b68E2D183B54179FC15220ac');
+  const [staffStatuses, setStaffStatuses] = useState<{ [addr : string] : boolean }>({});
+  const [customStaffInput, setCustomStaffInput] = useState<string>('');
+  const [staffActionLoading, setStaffActionLoading] = useState<string>('');
+  const [staffMessage, setStaffMessage] = useState<string>('');
+
+  const friendWallets = [
+    '0xb70b5D56d02e4B2C51eCDAe54C9bdA2Ba59c5515',
+    '0xAF899994bf61f2EaaD4babB2b63A8e09CE90787F'
+  ];
+
+  const checkStaffStatuses = async () => {
+    try {
+      const owner = await BlockchainService.getContractOwner();
+      if (owner) setContractOwner(owner);
+
+      const statuses : { [addr : string] : boolean } = {};
+      for (const w of friendWallets) {
+        statuses[w.toLowerCase()] = await BlockchainService.isStaff(w);
+      }
+      setStaffStatuses(statuses);
+    } catch (e) {
+      console.warn('Check staff statuses error : ', e);
+    }
+  };
+
+  useEffect(() => {
+    checkStaffStatuses();
+  }, []);
+
+  const handleGrantStaff = async (targetAddress : string) => {
+    if (!targetAddress || !targetAddress.startsWith('0x')) {
+      setStaffMessage('กรุณาระบุ Wallet Address ที่ถูกต้อง (ขึ้นต้นด้วย 0x)');
+      return;
+    }
+
+    try {
+      setStaffActionLoading(targetAddress);
+      setStaffMessage(`กำลังส่งคำสั่งไปยัง MetaMask เพื่อแต่งตั้ง ${targetAddress.slice(0, 8)}...`);
+
+      let addr = walletAddress;
+      if (!addr) {
+        addr = await connectWallet();
+      }
+
+      const txHash = await BlockchainService.setStaffStatus(targetAddress, true);
+      setStaffMessage(`แต่งตั้ง Staff สำเร็จเรียบร้อย! (Tx Hash : ${txHash.slice(0, 10)}...) เพื่อนของคุณสามารถซื้อตั๋ว On-chain ได้แล้วทันที`);
+      await checkStaffStatuses();
+    } catch (err : any) {
+      setStaffMessage(`เกิดข้อผิดพลาด : ${err.message || 'ไม่สามารถทำรายการได้'}`);
+    } finally {
+      setStaffActionLoading('');
+    }
+  };
 
   const fetchStats = async () => {
     try {
@@ -575,6 +637,124 @@ export default function AdminDashboardPage() {
             ตั๋วทุกช่องทางรองรับ Dynamic QR และลายเซ็นดิจิทัล EIP-191 ตรวจสอบผ่านเครื่องสแกนประตูได้เหมือนกัน 100%
           </div>
         </div>
+      </div>
+
+      {/* Staff & Gatekeeper Permission Manager Card */}
+      <div className='bg-white rounded-2xl border border-blue-200 shadow-sm p-6 space-y-5 bg-gradient-to-b from-blue-50/30 to-white'>
+        <div className='flex flex-col md:flex-row md:items-center justify-between gap-3 border-b border-slate-200 pb-4'>
+          <div>
+            <div className='inline-flex items-center space-x-2 text-xs font-semibold text-[#002d62] uppercase tracking-wider mb-1'>
+              <UserCheck className='w-4 h-4 text-[#002d62]' />
+              <span>Smart Contract Authority Management</span>
+            </div>
+            <h3 className='text-xl font-extrabold text-slate-900'>
+              จัดการสิทธิ์เจ้าหน้าที่ (Staff & Gatekeeper Permission)
+            </h3>
+            <p className='text-xs text-slate-500 mt-0.5'>
+              อนุมัติสิทธิ์ Staff ให้กระเป๋าเพื่อนบน Ethereum Sepolia เพื่อให้เพื่อนสามารถซื้อตั๋ว On-chain และช่วยสแกนตรวจตั๋วได้
+            </p>
+          </div>
+          <Badge variant='gold'>CONTRACT OWNER ONLY</Badge>
+        </div>
+
+        {/* Contract & Owner Info */}
+        <div className='grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs'>
+          <div className='p-3 bg-white border border-slate-200 rounded-xl space-y-1 shadow-xs'>
+            <span className='text-slate-400 block font-medium'>Contract Address (Sepolia)</span>
+            <span className='font-mono font-bold text-slate-800 break-all'>
+              {CHANG_ARENA_CONTRACT_ADDRESS}
+            </span>
+          </div>
+          <div className='p-3 bg-white border border-slate-200 rounded-xl space-y-1 shadow-xs'>
+            <span className='text-slate-400 block font-medium'>Contract Owner (ผู้มีสิทธิ์อนุมัติ Staff)</span>
+            <span className='font-mono font-bold text-[#002d62] break-all'>
+              {contractOwner}
+            </span>
+          </div>
+        </div>
+
+        {/* รายชื่อกระเป๋าเพื่อนที่ต้องการแต่งตั้ง */}
+        <div className='space-y-3 pt-1'>
+          <label className='block text-xs font-bold text-slate-700'>
+            รายชื่อกระเป๋าเพื่อนที่ขอสิทธิ์ซื้อ On-chain : 
+          </label>
+          <div className='grid grid-cols-1 md:grid-cols-2 gap-3'>
+            {friendWallets.map((wallet, idx) => {
+              const isApproved = staffStatuses[wallet.toLowerCase()];
+              const isLoading = staffActionLoading === wallet;
+
+              return (
+                <div
+                  key={wallet}
+                  className='p-4 bg-white border border-slate-200 rounded-xl space-y-3 shadow-xs flex flex-col justify-between'
+                >
+                  <div>
+                    <div className='flex items-center justify-between'>
+                      <span className='text-xs font-bold text-slate-800'>
+                        เพื่อนคนที่ {idx + 1}
+                      </span>
+                      <Badge variant={isApproved ? 'success' : 'default'}>
+                        {isApproved ? 'ได้รับสิทธิ์ Staff แล้ว' : 'ยังไม่ได้รับสิทธิ์'}
+                      </Badge>
+                    </div>
+                    <span className='font-mono text-xs text-slate-600 block mt-1.5 break-all'>
+                      {wallet}
+                    </span>
+                  </div>
+
+                  <Button
+                    variant={isApproved ? 'secondary' : 'primary'}
+                    size='sm'
+                    disabled={isApproved || isLoading}
+                    loading={isLoading}
+                    onClick={() => handleGrantStaff(wallet)}
+                    icon={<UserCheck className='w-4 h-4' />}
+                    className='w-full text-xs font-semibold'
+                  >
+                    {isApproved
+                      ? 'อนุมัติเรียบร้อยแล้ว (ซื้อ On-chain ได้)'
+                      : 'อนุมัติสิทธิ์ Staff ให้เพื่อน'}
+                  </Button>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* เพิ่มกระเป๋าอื่นๆ เพิ่มเติม */}
+        <div className='pt-2 border-t border-slate-100 flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5'>
+          <input
+            type='text'
+            value={customStaffInput}
+            onChange={(e) => setCustomStaffInput(e.target.value)}
+            placeholder='วาง Wallet Address อื่นๆ ที่ต้องการแต่งตั้ง (0x...)'
+            className='bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-xs font-mono text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#002d62] flex-1'
+          />
+          <Button
+            variant='gold'
+            size='sm'
+            loading={staffActionLoading === customStaffInput && customStaffInput !== ''}
+            onClick={() => handleGrantStaff(customStaffInput)}
+            icon={<UserPlus className='w-4 h-4' />}
+            className='text-xs font-semibold'
+          >
+            แต่งตั้งกระเป๋านี้
+          </Button>
+        </div>
+
+        {/* แจ้งเตือนข้อความการทำรายการ */}
+        {staffMessage && (
+          <div className='p-3 bg-blue-50 border border-blue-200 rounded-xl text-xs text-blue-950 flex items-center justify-between gap-2'>
+            <span>{staffMessage}</span>
+            <button
+              type='button'
+              onClick={() => setStaffMessage('')}
+              className='text-slate-400 hover:text-slate-600 text-xs font-bold'
+            >
+              ✕
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Data Table Section */}

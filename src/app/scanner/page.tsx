@@ -1,22 +1,35 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { CameraViewport } from '../../components/scanner/CameraViewport';
 import { ScannerService } from '../../services/scanner.service';
 import { BlockchainService } from '../../services/blockchain.service';
-import { MatchService } from '../../services/match.service';
+import { MatchInfo, MatchService } from '../../services/match.service';
 import { ShieldCheck, ScanLine, AlertTriangle, CheckCircle2, XCircle, ArrowLeft, RotateCcw } from 'lucide-react';
 import { Button } from '../../components/common/Button';
 import { Badge } from '../../components/common/Badge';
 
 export default function ScannerPage() {
+  const [matches, setMatches] = useState<MatchInfo[]>([]);
   const [currentMatchId, setCurrentMatchId] = useState<string>('BRU-vs-MU-2026');
   const [statusMessage, setStatusMessage] = useState<string>('พร้อมสแกนตรวจสิทธิ์บัตรเข้าสนาม');
   const [scanStatus, setScanStatus] = useState<'IDLE' | 'SUCCESS' | 'FAILED' | 'PROCESSING'>('IDLE');
   const [isProcessing, setIsProcessing] = useState<boolean>(false);
   const [isResetting, setIsResetting] = useState<boolean>(false);
   const [lastVerifiedTicket, setLastVerifiedTicket] = useState<any>(null);
+
+  // โหลดรายการแมตช์ทั้งหมดแบบ Dynamic จากระบบ
+  useEffect(() => {
+    MatchService.getMatches().then((data) => {
+      if (data && data.length > 0) {
+        setMatches(data);
+        if (!data.some((m) => m.matchId === currentMatchId)) {
+          setCurrentMatchId(data[0].matchId);
+        }
+      }
+    });
+  }, []);
 
   // ฟังก์ชันรีเซ็ตประวัติการสแกนเพื่อทดสอบใหม่
   const handleResetAuditLogs = async () => {
@@ -218,11 +231,21 @@ export default function ScannerPage() {
           <select
             value={currentMatchId}
             onChange={(e) => setCurrentMatchId(e.target.value)}
-            className='bg-slate-50 border border-slate-200 text-xs font-bold rounded-lg p-2 text-[#002d62] focus:outline-none focus:ring-2 focus:ring-[#002d62]'
+            className='bg-slate-50 border border-slate-200 text-xs font-bold rounded-lg p-2 text-[#002d62] focus:outline-none focus:ring-2 focus:ring-[#002d62] max-w-[280px]'
           >
-            <option value='BRU-vs-MU-2026'>BRU vs MU (Thai League)</option>
-            <option value='BRU-vs-BG-2026'>BRU vs BG Pathum (Thai League)</option>
-            <option value='BRU-vs-JDT-2026'>BRU vs JDT (ACL Elite)</option>
+            {matches.length > 0 ? (
+              matches.map((m) => (
+                <option key={m.matchId} value={m.matchId}>
+                  {m.homeTeam} vs {m.awayTeam} ({m.competition})
+                </option>
+              ))
+            ) : (
+              <>
+                <option value='BRU-vs-MU-2026'>BRU vs MU (Thai League)</option>
+                <option value='BRU-vs-BG-2026'>BRU vs BG Pathum (Thai League)</option>
+                <option value='BRU-vs-JDT-2026'>BRU vs JDT (ACL Elite)</option>
+              </>
+            )}
           </select>
         </div>
       </div>

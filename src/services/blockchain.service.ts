@@ -245,5 +245,44 @@ export class BlockchainService {
       tokenId
     };
   }
+
+  /**
+   * ตรวจสอบว่าที่อยู่กระเป๋าเป็น Staff หรือไม่
+   */
+  public static async isStaff(address : string) : Promise<boolean> {
+    try {
+      const contract = this.getContract(this.getReadOnlyProvider());
+      return await contract.isStaff(address);
+    } catch {
+      return false;
+    }
+  }
+
+  /**
+   * ดึงที่อยู่กระเป๋าของ Contract Owner
+   */
+  public static async getContractOwner() : Promise<string> {
+    try {
+      const contract = this.getContract(this.getReadOnlyProvider());
+      return await contract.owner();
+    } catch {
+      return '';
+    }
+  }
+
+  /**
+   * แต่งตั้งหรือเพิกถอนสิทธิ์ Staff (ต้องเรียกโดย Contract Owner ผ่าน MetaMask)
+   */
+  public static async setStaffStatus(
+    staffAddress : string,
+    status : boolean
+  ) : Promise<string> {
+    const signer = await this.getSigner();
+    const contract = this.getContract(signer);
+    const tx = await contract.setStaffStatus(staffAddress, status);
+    const receipt = await tx.wait();
+    return receipt?.hash || tx.hash;
+  }
 }
+
 
